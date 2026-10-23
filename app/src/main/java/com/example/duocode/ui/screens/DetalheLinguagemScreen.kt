@@ -32,6 +32,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -47,7 +48,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -83,6 +86,7 @@ import com.example.duocode.ui.theme.DuoTextSecondary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private fun corDaLinguagem(sigla: String): Color = when (sigla) {
     "JS" -> DuoAmber
@@ -98,6 +102,20 @@ private fun corDaDificuldade(dificuldade: Dificuldade): Color = when (dificuldad
     Dificuldade.DIFICIL -> DuoOrange
 }
 
+// Mostrado enquanto a tela de detalhe espera a resposta do banco
+@Composable
+fun CarregandoDetalhe(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        CircularProgressIndicator(color = DuoBlue, trackColor = DuoCardBorder)
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("carregando...", color = DuoTextSecondary, fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetalheLinguagemScreen(
@@ -108,8 +126,35 @@ fun DetalheLinguagemScreen(
     linguagemDao: LinguagemDao,
     questaoDao: QuestaoDao
 ) {
-    val linguagem = linguagens.find { it.id == linguagemId }
+    // O detalhe não usa as listas em memória: busca a linguagem e as questões dela no banco pelo id da rota
+    var carregando by remember { mutableStateOf(true) }
+    var linguagemDoBanco by remember { mutableStateOf<Linguagem?>(null) }
+    val questoesDaLinguagem = remember { mutableStateListOf<Questao>() }
     var mostrarDialogo by remember { mutableStateOf(false) }
+
+    suspend fun buscarDoBanco() {
+        val encontrada = linguagemDao.buscarPorId(linguagemId)
+        val daLinguagem = questaoDao.buscarPorLinguagem(linguagemId)
+        withContext(Dispatchers.Main) {
+            linguagemDoBanco = encontrada
+            questoesDaLinguagem.clear()
+            questoesDaLinguagem.addAll(daLinguagem)
+            carregando = false
+        }
+    }
+
+    LaunchedEffect(linguagemId) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                buscarDoBanco()
+            } catch (e: Exception) {
+                Log.e("DetalheLinguagemScreen", "Erro ao buscar a linguagem no banco", e)
+                withContext(Dispatchers.Main) { carregando = false }
+            }
+        }
+    }
+
+    val linguagem = linguagemDoBanco
 
     Scaffold(
         containerColor = DuoBg,
@@ -131,6 +176,11 @@ fun DetalheLinguagemScreen(
             )
         }
     ) { innerPadding ->
+        if (carregando) {
+            CarregandoDetalhe(Modifier.padding(innerPadding))
+            return@Scaffold
+        }
+
         if (linguagem == null) {
             Box(
                 modifier = Modifier
@@ -143,8 +193,7 @@ fun DetalheLinguagemScreen(
             return@Scaffold
         }
 
-        // O detalhe combina as duas listas: tudo abaixo é calculado a partir das questões desta linguagem
-        val questoesDaLinguagem = questoes.filter { it.linguagemId == linguagem.id }
+        // O detalhe combina as duas tabelas: tudo abaixo é calculado a partir das questões desta linguagem
         val resolvidas = questoesDaLinguagem.count { it.resolvida }
         val cor = corDaLinguagem(linguagem.sigla)
 
@@ -209,6 +258,7 @@ fun DetalheLinguagemScreen(
                                 try {
                                     questaoDao.atualizar(questao.copy(resolvida = !questao.resolvida))
                                     recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+                                    buscarDoBanco()
                                 } catch (e: Exception) {
                                     Log.e("DetalheLinguagemScreen", "Erro ao atualizar a questão", e)
                                 }
@@ -268,6 +318,7 @@ fun DetalheLinguagemScreen(
                                 )
                             )
                             recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+                            buscarDoBanco()
                         } catch (e: Exception) {
                             Log.e("DetalheLinguagemScreen", "Erro ao inserir a questão", e)
                         }

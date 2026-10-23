@@ -30,6 +30,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +63,7 @@ import com.example.duocode.ui.theme.DuoTextSecondary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private fun corDaSiglaDetalhe(sigla: String) = when (sigla) {
     "JS" -> DuoAmber
@@ -82,7 +89,36 @@ fun DetalheQuestaoScreen(
     linguagemDao: LinguagemDao,
     questaoDao: QuestaoDao
 ) {
-    val questao = questoes.find { it.id == id }
+    // Busca a questão no banco pelo id da rota, junto com a linguagem dela e quantas questões essa linguagem tem
+    var carregando by remember { mutableStateOf(true) }
+    var questaoDoBanco by remember { mutableStateOf<Questao?>(null) }
+    var linguagemDoBanco by remember { mutableStateOf<Linguagem?>(null) }
+    var totalDaLinguagem by remember { mutableIntStateOf(0) }
+
+    suspend fun buscarDoBanco() {
+        val encontrada = questaoDao.buscarPorId(id)
+        val daQuestao = encontrada?.let { linguagemDao.buscarPorId(it.linguagemId) }
+        val total = encontrada?.let { questaoDao.buscarPorLinguagem(it.linguagemId).size } ?: 0
+        withContext(Dispatchers.Main) {
+            questaoDoBanco = encontrada
+            linguagemDoBanco = daQuestao
+            totalDaLinguagem = total
+            carregando = false
+        }
+    }
+
+    LaunchedEffect(id) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                buscarDoBanco()
+            } catch (e: Exception) {
+                Log.e("DetalheQuestaoScreen", "Erro ao buscar a questão no banco", e)
+                withContext(Dispatchers.Main) { carregando = false }
+            }
+        }
+    }
+
+    val questao = questaoDoBanco
 
     Scaffold(
         containerColor = DuoBg,
@@ -104,6 +140,11 @@ fun DetalheQuestaoScreen(
             )
         }
     ) { innerPadding ->
+        if (carregando) {
+            CarregandoDetalhe(Modifier.padding(innerPadding))
+            return@Scaffold
+        }
+
         if (questao == null) {
             Box(
                 modifier = Modifier
@@ -116,12 +157,13 @@ fun DetalheQuestaoScreen(
             return@Scaffold
         }
 
-        val linguagem = linguagens.find { it.id == questao.linguagemId }
+        val linguagem = linguagemDoBanco
         val alternarResolvida: () -> Unit = {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     questaoDao.atualizar(questao.copy(resolvida = !questao.resolvida))
                     recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+                    buscarDoBanco()
                 } catch (e: Exception) {
                     Log.e("DetalheQuestaoScreen", "Erro ao atualizar a questão", e)
                 }
@@ -135,7 +177,6 @@ fun DetalheQuestaoScreen(
                 .padding(horizontal = 16.dp)
         ) {
             if (linguagem != null) {
-                val totalDaLinguagem = questoes.count { it.linguagemId == questao.linguagemId }
                 Card(
                     shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = DuoCard),
