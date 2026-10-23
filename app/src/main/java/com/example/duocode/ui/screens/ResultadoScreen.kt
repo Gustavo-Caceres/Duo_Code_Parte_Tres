@@ -40,7 +40,7 @@ import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
 
 @Composable
-fun ResultadoScreen(navController: NavController, acertos: Int, total: Int) {
+fun ResultadoScreen(navController: NavController, acertos: Int, total: Int, linguagens: String) {
     val percentual = if (total == 0) 0 else (acertos * 100) / total
     val xpGanho = acertos * 6
     val moedas = acertos
@@ -66,7 +66,7 @@ fun ResultadoScreen(navController: NavController, acertos: Int, total: Int) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Text("Lição concluída!", color = DuoText, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-        Text("Laços & iteração · unidade 4", color = DuoTextSecondary, fontSize = 14.sp)
+        Text("Exercícios de $linguagens", color = DuoTextSecondary, fontSize = 14.sp)
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -123,7 +123,7 @@ fun ResultadoScreen(navController: NavController, acertos: Int, total: Int) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = "$ git commit -m \"feat: completei laços de repetição\"",
+                text = "$ git commit -m \"feat: completei exercícios de $linguagens\"",
                 color = DuoAmber,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 13.sp,

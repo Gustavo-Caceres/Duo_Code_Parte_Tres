@@ -253,6 +253,7 @@ fun DetalheLinguagemScreen(
         if (mostrarDialogo) {
             CriarQuestaoDialogo(
                 nomeLinguagem = linguagem.nome,
+                questoes = questoes,
                 onCancelar = { mostrarDialogo = false },
                 onConfirmar = { enunciado, resposta, dificuldade, alternativasErradas ->
                     CoroutineScope(Dispatchers.IO).launch {
@@ -445,6 +446,7 @@ private fun QuestaoItem(questao: Questao, onAlternarResolvida: () -> Unit) {
 @Composable
 private fun CriarQuestaoDialogo(
     nomeLinguagem: String,
+    questoes: List<Questao>,
     onCancelar: () -> Unit,
     onConfirmar: (enunciado: String, resposta: String, dificuldade: Dificuldade, alternativasErradas: List<String>) -> Unit
 ) {
@@ -452,6 +454,10 @@ private fun CriarQuestaoDialogo(
     var resposta by remember { mutableStateOf("") }
     var dificuldade by remember { mutableStateOf(Dificuldade.FACIL) }
     val alternativasErradas = lembrarAlternativasErradas()
+
+    val erro = validarQuestao(enunciado, resposta, alternativasErradas, questoes)
+    // Só mostra o erro depois que a pessoa começa a preencher, para o diálogo não abrir todo vermelho
+    val comecouAPreencher = enunciado.isNotBlank() || resposta.isNotBlank() || alternativasErradas.any { it.isNotBlank() }
 
     val coresCampo = OutlinedTextFieldDefaults.colors(
         focusedTextColor = DuoText,
@@ -507,16 +513,21 @@ private fun CriarQuestaoDialogo(
                         )
                     }
                 }
+                if (comecouAPreencher) {
+                    MensagemDeErro(erro)
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    onConfirmar(enunciado.trim(), resposta.trim(), dificuldade, alternativasPreenchidas(alternativasErradas))
+                    if (erro == null) {
+                        onConfirmar(enunciado.trim(), resposta.trim(), dificuldade, alternativasPreenchidas(alternativasErradas))
+                    }
                 },
-                enabled = enunciado.isNotBlank() && resposta.isNotBlank()
+                enabled = erro == null
             ) {
-                Text("Adicionar", color = if (enunciado.isNotBlank() && resposta.isNotBlank()) DuoBlue else DuoTextSecondary)
+                Text("Adicionar", color = if (erro == null) DuoBlue else DuoTextSecondary)
             }
         },
         dismissButton = {

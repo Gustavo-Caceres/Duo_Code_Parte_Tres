@@ -110,6 +110,7 @@ fun QuestoesScreen(
         EditarQuestaoDialogo(
             questao = questao,
             linguagens = linguagens,
+            questoes = questoes,
             onCancelar = { questaoEmEdicao = null },
             onSalvar = { atualizada ->
                 CoroutineScope(Dispatchers.IO).launch {
@@ -157,6 +158,7 @@ fun QuestoesScreen(
         item {
             NovaQuestaoFormulario(
                 linguagens = linguagens,
+                questoes = questoes,
                 onAdicionar = { enunciado, resposta, linguagemId, dificuldade, alternativasErradas ->
                     CoroutineScope(Dispatchers.IO).launch {
                         try {
@@ -212,6 +214,7 @@ fun QuestoesScreen(
 @Composable
 private fun NovaQuestaoFormulario(
     linguagens: List<Linguagem>,
+    questoes: List<Questao>,
     onAdicionar: (
         enunciado: String,
         resposta: String,
@@ -228,7 +231,13 @@ private fun NovaQuestaoFormulario(
 
     // Se a linguagem escolhida for removida, volta para a primeira disponível
     val linguagemSelecionada = linguagens.find { it.id == linguagemId } ?: linguagens.firstOrNull()
-    val podeAdicionar = enunciado.isNotBlank() && linguagemSelecionada != null
+    val erro = if (linguagemSelecionada == null) {
+        "Cadastre uma linguagem antes de criar questões"
+    } else {
+        validarQuestao(enunciado, resposta, alternativasErradas, questoes)
+    }
+    // Só mostra o erro depois que a pessoa começa a preencher, para o formulário não abrir todo vermelho
+    val comecouAPreencher = enunciado.isNotBlank() || resposta.isNotBlank() || alternativasErradas.any { it.isNotBlank() }
 
     Card(
         shape = RoundedCornerShape(14.dp),
@@ -260,7 +269,7 @@ private fun NovaQuestaoFormulario(
             OutlinedTextField(
                 value = resposta,
                 onValueChange = { resposta = it },
-                placeholder = { Text("ex: \"object\" (opcional)", color = DuoTextSecondary) },
+                placeholder = { Text("ex: \"object\"", color = DuoTextSecondary) },
                 singleLine = true,
                 shape = RoundedCornerShape(10.dp),
                 colors = coresCampoQuestao(),
@@ -298,9 +307,14 @@ private fun NovaQuestaoFormulario(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            if (comecouAPreencher || linguagemSelecionada == null) {
+                MensagemDeErro(erro)
+                if (erro != null) Spacer(modifier = Modifier.height(10.dp))
+            }
+
             Button(
                 onClick = {
-                    if (linguagemSelecionada != null) {
+                    if (linguagemSelecionada != null && erro == null) {
                         onAdicionar(
                             enunciado.trim(),
                             resposta.trim(),
@@ -313,7 +327,7 @@ private fun NovaQuestaoFormulario(
                         alternativasErradas.indices.forEach { alternativasErradas[it] = "" }
                     }
                 },
-                enabled = podeAdicionar,
+                enabled = erro == null,
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DuoBlue,
@@ -335,6 +349,7 @@ private fun NovaQuestaoFormulario(
 private fun EditarQuestaoDialogo(
     questao: Questao,
     linguagens: List<Linguagem>,
+    questoes: List<Questao>,
     onCancelar: () -> Unit,
     onSalvar: (Questao) -> Unit
 ) {
@@ -345,7 +360,7 @@ private fun EditarQuestaoDialogo(
     val alternativasErradas = lembrarAlternativasErradas(questao.alternativasErradas)
 
     val linguagemSelecionada = linguagens.find { it.id == linguagemId } ?: linguagens.firstOrNull()
-    val podeSalvar = enunciado.isNotBlank() && linguagemSelecionada != null
+    val erro = validarQuestao(enunciado, resposta, alternativasErradas, questoes, idAtual = questao.id)
 
     AlertDialog(
         onDismissRequest = onCancelar,
@@ -402,12 +417,17 @@ private fun EditarQuestaoDialogo(
                     rotulo = { it.rotulo.replaceFirstChar { c -> c.uppercase() } },
                     onSelecionar = { dificuldade = it }
                 )
+
+                if (erro != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    MensagemDeErro(erro)
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    if (linguagemSelecionada != null) {
+                    if (linguagemSelecionada != null && erro == null) {
                         onSalvar(
                             questao.copy(
                                 enunciado = enunciado.trim(),
@@ -419,7 +439,7 @@ private fun EditarQuestaoDialogo(
                         )
                     }
                 },
-                enabled = podeSalvar,
+                enabled = erro == null && linguagemSelecionada != null,
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DuoBlue,

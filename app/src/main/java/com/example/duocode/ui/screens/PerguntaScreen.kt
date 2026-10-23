@@ -1,5 +1,6 @@
 package com.example.duocode.ui.screens
 
+import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -71,24 +72,34 @@ private data class Pergunta(
     val corretaIndex: Int
 )
 
-// A resposta cadastrada é a alternativa certa e as alternativas erradas cadastradas completam as opções.
-// Se a questão não tiver erradas cadastradas, usa as respostas de outras questões (preferindo a mesma linguagem)
+// Cada pergunta sempre tem 4 alternativas em ordem aleatória: a resposta certa e as 3 erradas cadastradas.
+// Se faltar alguma errada (questão antiga), completa com respostas de outras questões, preferindo a mesma linguagem
 private fun montarPerguntas(selecionadas: List<Questao>, todas: List<Questao>): List<Pergunta> =
     selecionadas.shuffled().map { questao ->
         val correta = questao.resposta.trim()
-        val candidatas = questao.alternativasErradas.ifEmpty {
-            val mesmaLinguagem = todas.filter { it.linguagemId == questao.linguagemId }.shuffled()
-            val outras = todas.filter { it.linguagemId != questao.linguagemId }.shuffled()
-            (mesmaLinguagem + outras).map { it.resposta }
-        }
-        val erradas = candidatas
+        val mesmaLinguagem = todas.filter { it.linguagemId == questao.linguagemId }.shuffled()
+        val outras = todas.filter { it.linguagemId != questao.linguagemId }.shuffled()
+        val reservas = (mesmaLinguagem + outras).map { it.resposta }
+        val erradas = (questao.alternativasErradas + reservas)
             .map { it.trim() }
             .filter { it.isNotBlank() && !it.equals(correta, ignoreCase = true) }
-            .distinct()
-            .take(3)
+            .distinctBy { it.lowercase() }
+            .take(QUANTIDADE_ALTERNATIVAS_ERRADAS)
         val alternativas = (erradas + correta).shuffled()
         Pergunta(questao, alternativas, alternativas.indexOf(correta))
     }
+
+// Junta os nomes das linguagens praticadas para o resultado: "Kotlin" ou "Python, Kotlin e SQL"
+private fun nomesDasLinguagens(perguntas: List<Pergunta>, linguagens: List<Linguagem>): String {
+    val nomes = perguntas
+        .mapNotNull { pergunta -> linguagens.find { it.id == pergunta.questao.linguagemId }?.nome }
+        .distinct()
+    return when (nomes.size) {
+        0 -> "programação"
+        1 -> nomes.first()
+        else -> nomes.dropLast(1).joinToString(", ") + " e " + nomes.last()
+    }
+}
 
 // linguagemId = -1 pratica questões de todas as linguagens
 @Composable
@@ -395,7 +406,8 @@ private fun Pratica(
                         onAcertar(pergunta.questao)
                     }
                 } else if (ultimaPergunta) {
-                    navController.navigate("resultado/$acertos/$total") {
+                    val praticadas = nomesDasLinguagens(perguntas, linguagens)
+                    navController.navigate("resultado/$acertos/$total/${Uri.encode(praticadas)}") {
                         popUpTo(Rotas.TRILHA)
                         launchSingleTop = true
                     }

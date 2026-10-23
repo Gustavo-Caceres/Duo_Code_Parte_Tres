@@ -58,6 +58,7 @@ import com.example.duocode.ui.theme.DuoBg
 import com.example.duocode.ui.theme.DuoBlue
 import com.example.duocode.ui.theme.DuoCard
 import com.example.duocode.ui.theme.DuoCardBorder
+import com.example.duocode.ui.theme.DuoOrange
 import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
 import kotlinx.coroutines.CoroutineScope
@@ -82,10 +83,56 @@ fun LinguagensScreen(
 ) {
     var novoNome by remember { mutableStateOf("") }
     var linguagemEmEdicao by remember { mutableStateOf<Linguagem?>(null) }
+    var linguagemParaRemover by remember { mutableStateOf<Linguagem?>(null) }
+    val erroNovoNome = validarNomeLinguagem(novoNome, linguagens)
+
+    // Remover uma linguagem apaga as questões dela junto (CASCADE), então pede confirmação antes
+    linguagemParaRemover?.let { linguagem ->
+        val totalDeQuestoes = questoes.count { it.linguagemId == linguagem.id }
+        AlertDialog(
+            onDismissRequest = { linguagemParaRemover = null },
+            containerColor = DuoCard,
+            title = { Text("Remover ${linguagem.nome}?", color = DuoText, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    text = if (totalDeQuestoes > 0) {
+                        "As $totalDeQuestoes questões dessa linguagem também serão apagadas."
+                    } else {
+                        "Essa linguagem não tem questões cadastradas."
+                    },
+                    color = DuoTextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                linguagemDao.deletar(linguagem)
+                                recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+                            } catch (e: Exception) {
+                                Log.e("LinguagensScreen", "Erro ao remover a linguagem", e)
+                            }
+                        }
+                        linguagemParaRemover = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DuoOrange, contentColor = DuoBg)
+                ) {
+                    Text("Remover")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { linguagemParaRemover = null }) {
+                    Text("Cancelar", color = DuoTextSecondary)
+                }
+            }
+        )
+    }
 
     linguagemEmEdicao?.let { linguagem ->
         EditarLinguagemDialogo(
             linguagem = linguagem,
+            linguagens = linguagens,
             onCancelar = { linguagemEmEdicao = null },
             onSalvar = { atualizada ->
                 CoroutineScope(Dispatchers.IO).launch {
@@ -132,21 +179,26 @@ fun LinguagensScreen(
                 onValueChange = { novoNome = it },
                 placeholder = { Text("Nova linguagem", color = DuoTextSecondary) },
                 singleLine = true,
+                isError = novoNome.isNotBlank() && erroNovoNome != null,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = DuoText,
                     unfocusedTextColor = DuoText,
                     focusedBorderColor = DuoCardBorder,
                     unfocusedBorderColor = DuoCardBorder,
                     focusedContainerColor = DuoCard,
-                    unfocusedContainerColor = DuoCard
+                    unfocusedContainerColor = DuoCard,
+                    errorTextColor = DuoText,
+                    errorBorderColor = DuoOrange,
+                    errorContainerColor = DuoCard
                 ),
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Button(
+                enabled = erroNovoNome == null,
                 onClick = {
                     val nome = novoNome.trim()
-                    if (nome.isNotEmpty()) {
+                    if (erroNovoNome == null) {
                         val sigla = nome.take(2).uppercase()
                         CoroutineScope(Dispatchers.IO).launch {
                             try {
@@ -161,11 +213,18 @@ fun LinguagensScreen(
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DuoBlue,
-                    contentColor = DuoBg
+                    contentColor = DuoBg,
+                    disabledContainerColor = DuoCardBorder,
+                    disabledContentColor = DuoTextSecondary
                 )
             ) {
                 Text("Adicionar")
             }
+        }
+
+        if (novoNome.isNotBlank() && erroNovoNome != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            MensagemDeErro(erroNovoNome)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -216,16 +275,7 @@ fun LinguagensScreen(
                                 tint = DuoTextSecondary
                             )
                         }
-                        IconButton(onClick = {
-                            CoroutineScope(Dispatchers.IO).launch {
-                                try {
-                                    linguagemDao.deletar(linguagem)
-                                    recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
-                                } catch (e: Exception) {
-                                    Log.e("LinguagensScreen", "Erro ao remover a linguagem", e)
-                                }
-                            }
-                        }) {
+                        IconButton(onClick = { linguagemParaRemover = linguagem }) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = "Remover",
@@ -239,9 +289,20 @@ fun LinguagensScreen(
     }
 }
 
+// Regras do nome da linguagem; retorna a mensagem do primeiro problema, ou null se estiver ok
+private fun validarNomeLinguagem(nome: String, linguagens: List<Linguagem>, idAtual: Int = 0): String? = when {
+    nome.isBlank() -> "Digite o nome da linguagem"
+    nome.trim().length < 2 -> "O nome precisa ter pelo menos 2 letras"
+    nome.trim().length > 20 -> "O nome pode ter no máximo 20 letras"
+    linguagens.any { it.id != idAtual && it.nome.equals(nome.trim(), ignoreCase = true) } ->
+        "Já existe uma linguagem com esse nome"
+    else -> null
+}
+
 @Composable
 private fun EditarLinguagemDialogo(
     linguagem: Linguagem,
+    linguagens: List<Linguagem>,
     onCancelar: () -> Unit,
     onSalvar: (Linguagem) -> Unit
 ) {
@@ -249,7 +310,9 @@ private fun EditarLinguagemDialogo(
     var sigla by remember { mutableStateOf(linguagem.sigla) }
     var descricao by remember { mutableStateOf(linguagem.descricao) }
 
-    val podeSalvar = nome.isNotBlank() && sigla.isNotBlank()
+    val erro = validarNomeLinguagem(nome, linguagens, idAtual = linguagem.id)
+        ?: if (sigla.isBlank()) "Informe a sigla (até 3 letras)" else null
+    val podeSalvar = erro == null
 
     AlertDialog(
         onDismissRequest = onCancelar,
@@ -273,7 +336,7 @@ private fun EditarLinguagemDialogo(
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(
                     value = sigla,
-                    onValueChange = { sigla = it.uppercase().take(3) },
+                    onValueChange = { texto -> sigla = texto.filter { it.isLetterOrDigit() }.uppercase().take(3) },
                     singleLine = true,
                     colors = coresCampoLinguagem(),
                     modifier = Modifier.fillMaxWidth()
@@ -290,6 +353,11 @@ private fun EditarLinguagemDialogo(
                     colors = coresCampoLinguagem(),
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                if (erro != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    MensagemDeErro(erro)
+                }
             }
         },
         confirmButton = {

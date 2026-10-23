@@ -130,12 +130,14 @@ fun AppNavigation() {
                 route = Rotas.RESULTADO,
                 arguments = listOf(
                     navArgument("acertos") { type = NavType.IntType },
-                    navArgument("total") { type = NavType.IntType }
+                    navArgument("total") { type = NavType.IntType },
+                    navArgument("linguagens") { type = NavType.StringType }
                 )
             ) { backStackEntry ->
                 val acertos = backStackEntry.arguments?.getInt("acertos") ?: 0
                 val total = backStackEntry.arguments?.getInt("total") ?: 0
-                ResultadoScreen(navController, acertos, total)
+                val praticadas = backStackEntry.arguments?.getString("linguagens") ?: "programação"
+                ResultadoScreen(navController, acertos, total, praticadas)
             }
             composable(Rotas.LINGUAGENS) { LinguagensScreen(navController, linguagens, questoes, linguagemDao, questaoDao) }
             composable(Rotas.QUESTOES) { QuestoesScreen(navController, linguagens, questoes, linguagemDao, questaoDao) }

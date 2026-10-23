@@ -8,5 +8,5 @@ object Rotas {
     const val DETALHE_LINGUAGEM = "detalhe_linguagem/{id}"
     const val DETALHE_QUESTAO = "detalhe_questao/{id}"
     const val PERGUNTA = "pergunta/{linguagemId}"
-    const val RESULTADO = "resultado/{acertos}/{total}"
+    const val RESULTADO = "resultado/{acertos}/{total}/{linguagens}"
 }
