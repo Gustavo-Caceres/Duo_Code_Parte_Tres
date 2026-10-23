@@ -1,6 +1,17 @@
 package com.example.duocode.model
 
-data class Linguagem(val id: Int, val nome: String, val sigla: String, val descricao: String = "")
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "linguagens")
+data class Linguagem(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val nome: String,
+    val sigla: String,
+    val descricao: String = ""
+)
 
 enum class Dificuldade(val rotulo: String) {
     FACIL("fácil"),
@@ -8,8 +19,20 @@ enum class Dificuldade(val rotulo: String) {
     DIFICIL("difícil")
 }
 
+@Entity(
+    tableName = "questoes",
+    foreignKeys = [
+        ForeignKey(
+            entity = Linguagem::class,
+            parentColumns = ["id"],
+            childColumns = ["linguagemId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("linguagemId")]
+)
 data class Questao(
-    val id: Int,
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val enunciado: String,
     val resposta: String,
     val linguagemId: Int,
