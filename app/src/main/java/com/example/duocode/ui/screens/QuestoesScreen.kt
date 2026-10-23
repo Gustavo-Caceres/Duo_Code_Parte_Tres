@@ -1,5 +1,6 @@
 package com.example.duocode.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +47,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.duocode.data.LinguagemDao
+import com.example.duocode.data.QuestaoDao
+import com.example.duocode.data.recarregarListas
 import com.example.duocode.model.Dificuldade
 import com.example.duocode.model.Linguagem
 import com.example.duocode.model.Questao
@@ -58,6 +63,9 @@ import com.example.duocode.ui.theme.DuoOrange
 import com.example.duocode.ui.theme.DuoPurple
 import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 private fun corDaSiglaQuestao(sigla: String): Color = when (sigla) {
     "JS" -> DuoAmber
@@ -77,8 +85,20 @@ private fun corDaDificuldadeQuestao(dificuldade: Dificuldade): Color = when (dif
 fun QuestoesScreen(
     navController: NavController,
     linguagens: SnapshotStateList<Linguagem>,
-    questoes: SnapshotStateList<Questao>
+    questoes: SnapshotStateList<Questao>,
+    linguagemDao: LinguagemDao,
+    questaoDao: QuestaoDao
 ) {
+    LaunchedEffect(Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+            } catch (e: Exception) {
+                Log.e("QuestoesScreen", "Erro ao buscar as questões", e)
+            }
+        }
+    }
+
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
@@ -112,16 +132,21 @@ fun QuestoesScreen(
             NovaQuestaoFormulario(
                 linguagens = linguagens,
                 onAdicionar = { enunciado, resposta, linguagemId, dificuldade ->
-                    val novoId = (questoes.maxOfOrNull { it.id } ?: 0) + 1
-                    questoes.add(
-                        Questao(
-                            id = novoId,
-                            enunciado = enunciado,
-                            resposta = resposta,
-                            linguagemId = linguagemId,
-                            dificuldade = dificuldade
-                        )
-                    )
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            questaoDao.inserir(
+                                Questao(
+                                    enunciado = enunciado,
+                                    resposta = resposta,
+                                    linguagemId = linguagemId,
+                                    dificuldade = dificuldade
+                                )
+                            )
+                            recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+                        } catch (e: Exception) {
+                            Log.e("QuestoesScreen", "Erro ao inserir a questão", e)
+                        }
+                    }
                 }
             )
         }
@@ -140,7 +165,16 @@ fun QuestoesScreen(
                 questao = questao,
                 linguagem = linguagens.find { it.id == questao.linguagemId },
                 onAbrir = { navController.navigate("detalhe_questao/${questao.id}") },
-                onRemover = { questoes.remove(questao) }
+                onRemover = {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            questaoDao.deletar(questao)
+                            recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+                        } catch (e: Exception) {
+                            Log.e("QuestoesScreen", "Erro ao remover a questão", e)
+                        }
+                    }
+                }
             )
         }
         item { Spacer(modifier = Modifier.height(4.dp)) }
