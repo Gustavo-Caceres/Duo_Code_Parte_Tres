@@ -1,5 +1,6 @@
 package com.example.duocode.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +30,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +45,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.duocode.data.LinguagemDao
+import com.example.duocode.data.QuestaoDao
+import com.example.duocode.data.recarregarListas
 import com.example.duocode.model.Linguagem
 import com.example.duocode.model.Questao
 import com.example.duocode.navigation.Rotas
@@ -52,6 +57,9 @@ import com.example.duocode.ui.theme.DuoCard
 import com.example.duocode.ui.theme.DuoCardBorder
 import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 private fun corDaSigla(sigla: String): Color = when (sigla) {
     "JS" -> com.example.duocode.ui.theme.DuoAmber
@@ -65,9 +73,21 @@ private fun corDaSigla(sigla: String): Color = when (sigla) {
 fun LinguagensScreen(
     navController: NavController,
     linguagens: SnapshotStateList<Linguagem>,
-    questoes: SnapshotStateList<Questao>
+    questoes: SnapshotStateList<Questao>,
+    linguagemDao: LinguagemDao,
+    questaoDao: QuestaoDao
 ) {
     var novoNome by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+            } catch (e: Exception) {
+                Log.e("LinguagensScreen", "Erro ao buscar as linguagens", e)
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -105,9 +125,15 @@ fun LinguagensScreen(
                 onClick = {
                     val nome = novoNome.trim()
                     if (nome.isNotEmpty()) {
-                        val novoId = (linguagens.maxOfOrNull { it.id } ?: 0) + 1
                         val sigla = nome.take(2).uppercase()
-                        linguagens.add(Linguagem(id = novoId, nome = nome, sigla = sigla))
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                linguagemDao.inserir(Linguagem(nome = nome, sigla = sigla))
+                                recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+                            } catch (e: Exception) {
+                                Log.e("LinguagensScreen", "Erro ao inserir a linguagem", e)
+                            }
+                        }
                         novoNome = ""
                     }
                 },
@@ -162,8 +188,14 @@ fun LinguagensScreen(
                             modifier = Modifier.weight(1f)
                         )
                         IconButton(onClick = {
-                            linguagens.remove(linguagem)
-                            questoes.removeAll { it.linguagemId == linguagem.id }
+                            CoroutineScope(Dispatchers.IO).launch {
+                                try {
+                                    linguagemDao.deletar(linguagem)
+                                    recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+                                } catch (e: Exception) {
+                                    Log.e("LinguagensScreen", "Erro ao remover a linguagem", e)
+                                }
+                            }
                         }) {
                             Icon(
                                 imageVector = Icons.Default.Delete,

@@ -1,5 +1,6 @@
 package com.example.duocode.navigation
 
+import android.util.Log
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -13,10 +14,12 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -26,7 +29,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.duocode.model.Dificuldade
+import com.example.duocode.data.AppDatabase
+import com.example.duocode.data.inserirDadosIniciais
+import com.example.duocode.data.recarregarListas
 import com.example.duocode.model.Linguagem
 import com.example.duocode.model.Questao
 import com.example.duocode.ui.screens.DetalheLinguagemScreen
@@ -41,6 +46,9 @@ import com.example.duocode.ui.theme.DuoBg
 import com.example.duocode.ui.theme.DuoBlue
 import com.example.duocode.ui.theme.DuoCard
 import com.example.duocode.ui.theme.DuoTextSecondary
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 private data class AbaNav(val rota: String, val label: String, val icone: androidx.compose.ui.graphics.vector.ImageVector)
 
@@ -55,24 +63,23 @@ private val abas = listOf(
 fun AppNavigation() {
     val navController = rememberNavController()
 
-    val linguagens = remember {
-        mutableStateListOf(
-            Linguagem(id = 1, nome = "JavaScript", sigla = "JS", descricao = "Web, front-end e Node"),
-            Linguagem(id = 2, nome = "Python", sigla = "PY", descricao = "Scripts, dados e automação"),
-            Linguagem(id = 3, nome = "Kotlin", sigla = "KT", descricao = "Android nativo"),
-            Linguagem(id = 4, nome = "SQL", sigla = "SQL", descricao = "Consultas e bancos relacionais")
-        )
-    }
-    val questoes = remember {
-        mutableStateListOf(
-            Questao(1, "Qual é a saída de arr.length após arr.push(4)?", "4", linguagemId = 1, dificuldade = Dificuldade.FACIL, resolvida = true),
-            Questao(2, "Qual a diferença entre let e const?", "const não pode ser reatribuída", linguagemId = 1, dificuldade = Dificuldade.FACIL, resolvida = true),
-            Questao(3, "O que [1, 2, 3].map(x => x * 2) retorna?", "[2, 4, 6]", linguagemId = 1, dificuldade = Dificuldade.MEDIO),
-            Questao(4, "Qual a ordem de execução do event loop?", "call stack, microtasks, macrotasks", linguagemId = 1, dificuldade = Dificuldade.DIFICIL),
-            Questao(5, "O que len(\"dev\") retorna?", "3", linguagemId = 2, dificuldade = Dificuldade.FACIL),
-            Questao(6, "Qual palavra-chave declara um valor imutável em Kotlin?", "val", linguagemId = 3, dificuldade = Dificuldade.MEDIO),
-            Questao(7, "Qual cláusula filtra grupos depois de um GROUP BY?", "HAVING", linguagemId = 4, dificuldade = Dificuldade.DIFICIL)
-        )
+    val context = LocalContext.current
+    val banco = remember { AppDatabase.getDatabase(context) }
+    val linguagemDao = banco.linguagemDao()
+    val questaoDao = banco.questaoDao()
+
+    val linguagens = remember { mutableStateListOf<Linguagem>() }
+    val questoes = remember { mutableStateListOf<Questao>() }
+
+    LaunchedEffect(Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                inserirDadosIniciais(linguagemDao, questaoDao)
+                recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+            } catch (e: Exception) {
+                Log.e("AppNavigation", "Erro ao carregar os dados do banco", e)
+            }
+        }
     }
 
     Scaffold(
@@ -124,8 +131,8 @@ fun AppNavigation() {
                 val total = backStackEntry.arguments?.getInt("total") ?: 0
                 ResultadoScreen(navController, acertos, total)
             }
-            composable(Rotas.LINGUAGENS) { LinguagensScreen(navController, linguagens, questoes) }
-            composable(Rotas.QUESTOES) { QuestoesScreen(navController, linguagens, questoes) }
+            composable(Rotas.LINGUAGENS) { LinguagensScreen(navController, linguagens, questoes, linguagemDao, questaoDao) }
+            composable(Rotas.QUESTOES) { QuestoesScreen(navController, linguagens, questoes, linguagemDao, questaoDao) }
             composable(Rotas.PERFIL) { PerfilScreen() }
             composable(
                 route = Rotas.DETALHE_LINGUAGEM,
