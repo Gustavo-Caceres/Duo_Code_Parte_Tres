@@ -1,5 +1,6 @@
 package com.example.duocode.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,6 +19,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -60,6 +63,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import com.example.duocode.data.LinguagemDao
+import com.example.duocode.data.QuestaoDao
+import com.example.duocode.data.recarregarListas
 import com.example.duocode.model.Dificuldade
 import com.example.duocode.model.Linguagem
 import com.example.duocode.model.Questao
@@ -74,6 +80,9 @@ import com.example.duocode.ui.theme.DuoOrange
 import com.example.duocode.ui.theme.DuoPurple
 import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 private fun corDaLinguagem(sigla: String): Color = when (sigla) {
     "JS" -> DuoAmber
@@ -95,7 +104,9 @@ fun DetalheLinguagemScreen(
     navController: NavController,
     linguagemId: Int,
     linguagens: SnapshotStateList<Linguagem>,
-    questoes: SnapshotStateList<Questao>
+    questoes: SnapshotStateList<Questao>,
+    linguagemDao: LinguagemDao,
+    questaoDao: QuestaoDao
 ) {
     val linguagem = linguagens.find { it.id == linguagemId }
     var mostrarDialogo by remember { mutableStateOf(false) }
@@ -194,9 +205,13 @@ fun DetalheLinguagemScreen(
                     QuestaoItem(
                         questao = questao,
                         onAlternarResolvida = {
-                            val indice = questoes.indexOfFirst { it.id == questao.id }
-                            if (indice >= 0) {
-                                questoes[indice] = questao.copy(resolvida = !questao.resolvida)
+                            CoroutineScope(Dispatchers.IO).launch {
+                                try {
+                                    questaoDao.atualizar(questao.copy(resolvida = !questao.resolvida))
+                                    recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+                                } catch (e: Exception) {
+                                    Log.e("DetalheLinguagemScreen", "Erro ao atualizar a questão", e)
+                                }
                             }
                         }
                     )
@@ -222,7 +237,7 @@ fun DetalheLinguagemScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             Button(
-                onClick = { navController.navigate(Rotas.PERGUNTA) },
+                onClick = { navController.navigate("pergunta/${linguagem.id}") },
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = DuoBlue, contentColor = DuoBg),
                 modifier = Modifier
@@ -239,17 +254,23 @@ fun DetalheLinguagemScreen(
             CriarQuestaoDialogo(
                 nomeLinguagem = linguagem.nome,
                 onCancelar = { mostrarDialogo = false },
-                onConfirmar = { enunciado, resposta, dificuldade ->
-                    val novoId = (questoes.maxOfOrNull { it.id } ?: 0) + 1
-                    questoes.add(
-                        Questao(
-                            id = novoId,
-                            enunciado = enunciado,
-                            resposta = resposta,
-                            linguagemId = linguagem.id,
-                            dificuldade = dificuldade
-                        )
-                    )
+                onConfirmar = { enunciado, resposta, dificuldade, alternativasErradas ->
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            questaoDao.inserir(
+                                Questao(
+                                    enunciado = enunciado,
+                                    resposta = resposta,
+                                    linguagemId = linguagem.id,
+                                    dificuldade = dificuldade,
+                                    alternativasErradas = alternativasErradas
+                                )
+                            )
+                            recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+                        } catch (e: Exception) {
+                            Log.e("DetalheLinguagemScreen", "Erro ao inserir a questão", e)
+                        }
+                    }
                     mostrarDialogo = false
                 }
             )
@@ -425,11 +446,12 @@ private fun QuestaoItem(questao: Questao, onAlternarResolvida: () -> Unit) {
 private fun CriarQuestaoDialogo(
     nomeLinguagem: String,
     onCancelar: () -> Unit,
-    onConfirmar: (enunciado: String, resposta: String, dificuldade: Dificuldade) -> Unit
+    onConfirmar: (enunciado: String, resposta: String, dificuldade: Dificuldade, alternativasErradas: List<String>) -> Unit
 ) {
     var enunciado by remember { mutableStateOf("") }
     var resposta by remember { mutableStateOf("") }
     var dificuldade by remember { mutableStateOf(Dificuldade.FACIL) }
+    val alternativasErradas = lembrarAlternativasErradas()
 
     val coresCampo = OutlinedTextFieldDefaults.colors(
         focusedTextColor = DuoText,
@@ -447,7 +469,10 @@ private fun CriarQuestaoDialogo(
         containerColor = DuoCard,
         title = { Text("Nova questão de $nomeLinguagem", color = DuoText, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState())
+            ) {
                 OutlinedTextField(
                     value = enunciado,
                     onValueChange = { enunciado = it },
@@ -459,11 +484,14 @@ private fun CriarQuestaoDialogo(
                 OutlinedTextField(
                     value = resposta,
                     onValueChange = { resposta = it },
-                    label = { Text("Resposta") },
+                    label = { Text("Resposta certa") },
                     singleLine = true,
                     colors = coresCampo,
                     modifier = Modifier.fillMaxWidth()
                 )
+                Column {
+                    CamposAlternativasErradas(alternativasErradas, coresCampo)
+                }
                 Text("Dificuldade", color = DuoTextSecondary, fontSize = 13.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Dificuldade.entries.forEach { opcao ->
@@ -483,7 +511,9 @@ private fun CriarQuestaoDialogo(
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirmar(enunciado.trim(), resposta.trim(), dificuldade) },
+                onClick = {
+                    onConfirmar(enunciado.trim(), resposta.trim(), dificuldade, alternativasPreenchidas(alternativasErradas))
+                },
                 enabled = enunciado.isNotBlank() && resposta.isNotBlank()
             ) {
                 Text("Adicionar", color = if (enunciado.isNotBlank() && resposta.isNotBlank()) DuoBlue else DuoTextSecondary)

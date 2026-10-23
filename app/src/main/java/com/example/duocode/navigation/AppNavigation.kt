@@ -119,7 +119,13 @@ fun AppNavigation() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Rotas.TRILHA) { TrilhaScreen(navController) }
-            composable(Rotas.PERGUNTA) { PerguntaScreen(navController) }
+            composable(
+                route = Rotas.PERGUNTA,
+                arguments = listOf(navArgument("linguagemId") { type = NavType.IntType })
+            ) { backStackEntry ->
+                val linguagemId = backStackEntry.arguments?.getInt("linguagemId") ?: -1
+                PerguntaScreen(navController, linguagemId, linguagens, questoes, linguagemDao, questaoDao)
+            }
             composable(
                 route = Rotas.RESULTADO,
                 arguments = listOf(
@@ -139,14 +145,14 @@ fun AppNavigation() {
                 arguments = listOf(navArgument("id") { type = NavType.IntType })
             ) { backStackEntry ->
                 val id = backStackEntry.arguments?.getInt("id") ?: -1
-                DetalheLinguagemScreen(navController, id, linguagens, questoes)
+                DetalheLinguagemScreen(navController, id, linguagens, questoes, linguagemDao, questaoDao)
             }
             composable(
                 route = Rotas.DETALHE_QUESTAO,
                 arguments = listOf(navArgument("id") { type = NavType.IntType })
             ) { backStackEntry ->
                 val id = backStackEntry.arguments?.getInt("id") ?: -1
-                DetalheQuestaoScreen(navController, id, linguagens, questoes)
+                DetalheQuestaoScreen(navController, id, linguagens, questoes, linguagemDao, questaoDao)
             }
         }
     }

@@ -37,5 +37,7 @@ data class Questao(
     val resposta: String,
     val linguagemId: Int,
     val dificuldade: Dificuldade = Dificuldade.FACIL,
-    val resolvida: Boolean = false
+    val resolvida: Boolean = false,
+    // Alternativas que aparecem junto com a resposta certa na hora de praticar
+    val alternativasErradas: List<String> = emptyList()
 )

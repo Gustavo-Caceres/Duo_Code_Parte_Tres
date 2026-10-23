@@ -34,7 +34,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.duocode.navigation.Rotas
 import com.example.duocode.ui.theme.DuoAmber
 import com.example.duocode.ui.theme.DuoBg
 import com.example.duocode.ui.theme.DuoBlue
@@ -130,7 +129,7 @@ fun TrilhaScreen(navController: NavController) {
                     .background(DuoBlue, RoundedCornerShape(8.dp))
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             )
-            NoAtual(onClick = { navController.navigate(Rotas.PERGUNTA) })
+            NoAtual(onClick = { navController.navigate("pergunta/-1") })
 
             NoBloqueado()
             NoBloqueado()

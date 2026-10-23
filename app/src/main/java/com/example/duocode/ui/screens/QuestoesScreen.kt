@@ -15,9 +15,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -32,6 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -99,6 +104,27 @@ fun QuestoesScreen(
         }
     }
 
+    var questaoEmEdicao by remember { mutableStateOf<Questao?>(null) }
+
+    questaoEmEdicao?.let { questao ->
+        EditarQuestaoDialogo(
+            questao = questao,
+            linguagens = linguagens,
+            onCancelar = { questaoEmEdicao = null },
+            onSalvar = { atualizada ->
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        questaoDao.atualizar(atualizada)
+                        recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+                    } catch (e: Exception) {
+                        Log.e("QuestoesScreen", "Erro ao atualizar a questão", e)
+                    }
+                }
+                questaoEmEdicao = null
+            }
+        )
+    }
+
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
@@ -131,7 +157,7 @@ fun QuestoesScreen(
         item {
             NovaQuestaoFormulario(
                 linguagens = linguagens,
-                onAdicionar = { enunciado, resposta, linguagemId, dificuldade ->
+                onAdicionar = { enunciado, resposta, linguagemId, dificuldade, alternativasErradas ->
                     CoroutineScope(Dispatchers.IO).launch {
                         try {
                             questaoDao.inserir(
@@ -139,7 +165,8 @@ fun QuestoesScreen(
                                     enunciado = enunciado,
                                     resposta = resposta,
                                     linguagemId = linguagemId,
-                                    dificuldade = dificuldade
+                                    dificuldade = dificuldade,
+                                    alternativasErradas = alternativasErradas
                                 )
                             )
                             recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
@@ -165,6 +192,7 @@ fun QuestoesScreen(
                 questao = questao,
                 linguagem = linguagens.find { it.id == questao.linguagemId },
                 onAbrir = { navController.navigate("detalhe_questao/${questao.id}") },
+                onEditar = { questaoEmEdicao = questao },
                 onRemover = {
                     CoroutineScope(Dispatchers.IO).launch {
                         try {
@@ -184,12 +212,19 @@ fun QuestoesScreen(
 @Composable
 private fun NovaQuestaoFormulario(
     linguagens: List<Linguagem>,
-    onAdicionar: (enunciado: String, resposta: String, linguagemId: Int, dificuldade: Dificuldade) -> Unit
+    onAdicionar: (
+        enunciado: String,
+        resposta: String,
+        linguagemId: Int,
+        dificuldade: Dificuldade,
+        alternativasErradas: List<String>
+    ) -> Unit
 ) {
     var enunciado by remember { mutableStateOf("") }
     var resposta by remember { mutableStateOf("") }
     var linguagemId by remember { mutableStateOf(linguagens.firstOrNull()?.id) }
     var dificuldade by remember { mutableStateOf(Dificuldade.FACIL) }
+    val alternativasErradas = lembrarAlternativasErradas()
 
     // Se a linguagem escolhida for removida, volta para a primeira disponível
     val linguagemSelecionada = linguagens.find { it.id == linguagemId } ?: linguagens.firstOrNull()
@@ -220,12 +255,12 @@ private fun NovaQuestaoFormulario(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Text("Resposta", color = DuoTextSecondary, fontSize = 13.sp)
+            Text("Resposta certa", color = DuoTextSecondary, fontSize = 13.sp)
             Spacer(modifier = Modifier.height(6.dp))
             OutlinedTextField(
                 value = resposta,
                 onValueChange = { resposta = it },
-                placeholder = { Text("ex: 4 (opcional)", color = DuoTextSecondary) },
+                placeholder = { Text("ex: \"object\" (opcional)", color = DuoTextSecondary) },
                 singleLine = true,
                 shape = RoundedCornerShape(10.dp),
                 colors = coresCampoQuestao(),
@@ -233,6 +268,10 @@ private fun NovaQuestaoFormulario(
             )
 
             Spacer(modifier = Modifier.height(12.dp))
+
+            CamposAlternativasErradas(alternativasErradas, coresCampoQuestao())
+
+            Spacer(modifier = Modifier.height(4.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -262,9 +301,16 @@ private fun NovaQuestaoFormulario(
             Button(
                 onClick = {
                     if (linguagemSelecionada != null) {
-                        onAdicionar(enunciado.trim(), resposta.trim(), linguagemSelecionada.id, dificuldade)
+                        onAdicionar(
+                            enunciado.trim(),
+                            resposta.trim(),
+                            linguagemSelecionada.id,
+                            dificuldade,
+                            alternativasPreenchidas(alternativasErradas)
+                        )
                         enunciado = ""
                         resposta = ""
+                        alternativasErradas.indices.forEach { alternativasErradas[it] = "" }
                     }
                 },
                 enabled = podeAdicionar,
@@ -283,6 +329,114 @@ private fun NovaQuestaoFormulario(
             }
         }
     }
+}
+
+@Composable
+private fun EditarQuestaoDialogo(
+    questao: Questao,
+    linguagens: List<Linguagem>,
+    onCancelar: () -> Unit,
+    onSalvar: (Questao) -> Unit
+) {
+    var enunciado by remember { mutableStateOf(questao.enunciado) }
+    var resposta by remember { mutableStateOf(questao.resposta) }
+    var linguagemId by remember { mutableStateOf(questao.linguagemId) }
+    var dificuldade by remember { mutableStateOf(questao.dificuldade) }
+    val alternativasErradas = lembrarAlternativasErradas(questao.alternativasErradas)
+
+    val linguagemSelecionada = linguagens.find { it.id == linguagemId } ?: linguagens.firstOrNull()
+    val podeSalvar = enunciado.isNotBlank() && linguagemSelecionada != null
+
+    AlertDialog(
+        onDismissRequest = onCancelar,
+        containerColor = DuoCard,
+        title = { Text("Editar questão #${questao.id}", color = DuoText, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text("Enunciado", color = DuoTextSecondary, fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = enunciado,
+                    onValueChange = { enunciado = it },
+                    minLines = 2,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = coresCampoQuestao(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text("Resposta certa", color = DuoTextSecondary, fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = resposta,
+                    onValueChange = { resposta = it },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = coresCampoQuestao(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                CamposAlternativasErradas(alternativasErradas, coresCampoQuestao())
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text("Linguagem", color = DuoTextSecondary, fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                Seletor(
+                    textoSelecionado = linguagemSelecionada?.nome ?: "—",
+                    opcoes = linguagens,
+                    rotulo = { it.nome },
+                    onSelecionar = { linguagemId = it.id }
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text("Dificuldade", color = DuoTextSecondary, fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                Seletor(
+                    textoSelecionado = dificuldade.rotulo.replaceFirstChar { it.uppercase() },
+                    opcoes = Dificuldade.entries,
+                    rotulo = { it.rotulo.replaceFirstChar { c -> c.uppercase() } },
+                    onSelecionar = { dificuldade = it }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (linguagemSelecionada != null) {
+                        onSalvar(
+                            questao.copy(
+                                enunciado = enunciado.trim(),
+                                resposta = resposta.trim(),
+                                linguagemId = linguagemSelecionada.id,
+                                dificuldade = dificuldade,
+                                alternativasErradas = alternativasPreenchidas(alternativasErradas)
+                            )
+                        )
+                    }
+                },
+                enabled = podeSalvar,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DuoBlue,
+                    contentColor = DuoBg,
+                    disabledContainerColor = DuoCardBorder,
+                    disabledContentColor = DuoTextSecondary
+                )
+            ) {
+                Text("Salvar", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancelar) {
+                Text("Cancelar", color = DuoTextSecondary)
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -339,7 +493,13 @@ private fun coresCampoQuestao() = OutlinedTextFieldDefaults.colors(
 )
 
 @Composable
-private fun QuestaoCard(questao: Questao, linguagem: Linguagem?, onAbrir: () -> Unit, onRemover: () -> Unit) {
+private fun QuestaoCard(
+    questao: Questao,
+    linguagem: Linguagem?,
+    onAbrir: () -> Unit,
+    onEditar: () -> Unit,
+    onRemover: () -> Unit
+) {
     val sigla = linguagem?.sigla ?: "?"
 
     Card(
@@ -383,6 +543,13 @@ private fun QuestaoCard(questao: Questao, linguagem: Linguagem?, onAbrir: () -> 
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(text = questao.enunciado, color = DuoText, fontSize = 15.sp)
+            }
+            IconButton(onClick = onEditar) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Editar",
+                    tint = DuoTextSecondary
+                )
             }
             IconButton(onClick = onRemover) {
                 Icon(

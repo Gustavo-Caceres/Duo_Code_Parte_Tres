@@ -20,13 +20,13 @@ suspend fun inserirDadosIniciais(linguagemDao: LinguagemDao, questaoDao: Questao
     val ids = linguagemDao.buscarTodos().associate { it.sigla to it.id }
 
     listOf(
-        Questao(enunciado = "Qual é a saída de arr.length após arr.push(4)?", resposta = "4", linguagemId = ids.getValue("JS"), dificuldade = Dificuldade.FACIL, resolvida = true),
-        Questao(enunciado = "Qual a diferença entre let e const?", resposta = "const não pode ser reatribuída", linguagemId = ids.getValue("JS"), dificuldade = Dificuldade.FACIL, resolvida = true),
-        Questao(enunciado = "O que [1, 2, 3].map(x => x * 2) retorna?", resposta = "[2, 4, 6]", linguagemId = ids.getValue("JS"), dificuldade = Dificuldade.MEDIO),
-        Questao(enunciado = "Qual a ordem de execução do event loop?", resposta = "call stack, microtasks, macrotasks", linguagemId = ids.getValue("JS"), dificuldade = Dificuldade.DIFICIL),
-        Questao(enunciado = "O que len(\"dev\") retorna?", resposta = "3", linguagemId = ids.getValue("PY"), dificuldade = Dificuldade.FACIL),
-        Questao(enunciado = "Qual palavra-chave declara um valor imutável em Kotlin?", resposta = "val", linguagemId = ids.getValue("KT"), dificuldade = Dificuldade.MEDIO),
-        Questao(enunciado = "Qual cláusula filtra grupos depois de um GROUP BY?", resposta = "HAVING", linguagemId = ids.getValue("SQL"), dificuldade = Dificuldade.DIFICIL)
+        Questao(enunciado = "Qual é a saída de arr.length após arr.push(4)?", resposta = "4", linguagemId = ids.getValue("JS"), dificuldade = Dificuldade.FACIL, resolvida = true, alternativasErradas = listOf("3", "undefined", "Error")),
+        Questao(enunciado = "Qual a diferença entre let e const?", resposta = "const não pode ser reatribuída", linguagemId = ids.getValue("JS"), dificuldade = Dificuldade.FACIL, resolvida = true, alternativasErradas = listOf("let não pode ser reatribuída", "const só funciona em funções", "Não há diferença")),
+        Questao(enunciado = "O que [1, 2, 3].map(x => x * 2) retorna?", resposta = "[2, 4, 6]", linguagemId = ids.getValue("JS"), dificuldade = Dificuldade.MEDIO, alternativasErradas = listOf("[1, 2, 3]", "[1, 4, 9]", "undefined")),
+        Questao(enunciado = "Qual a ordem de execução do event loop?", resposta = "call stack, microtasks, macrotasks", linguagemId = ids.getValue("JS"), dificuldade = Dificuldade.DIFICIL, alternativasErradas = listOf("macrotasks, microtasks, call stack", "microtasks, call stack, macrotasks", "call stack, macrotasks, microtasks")),
+        Questao(enunciado = "O que len(\"dev\") retorna?", resposta = "3", linguagemId = ids.getValue("PY"), dificuldade = Dificuldade.FACIL, alternativasErradas = listOf("2", "4", "Error")),
+        Questao(enunciado = "Qual palavra-chave declara um valor imutável em Kotlin?", resposta = "val", linguagemId = ids.getValue("KT"), dificuldade = Dificuldade.MEDIO, alternativasErradas = listOf("var", "const", "let")),
+        Questao(enunciado = "Qual cláusula filtra grupos depois de um GROUP BY?", resposta = "HAVING", linguagemId = ids.getValue("SQL"), dificuldade = Dificuldade.DIFICIL, alternativasErradas = listOf("WHERE", "ORDER BY", "LIMIT"))
     ).forEach { questaoDao.inserir(it) }
 }
 

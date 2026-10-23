@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -29,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -78,6 +81,25 @@ fun LinguagensScreen(
     questaoDao: QuestaoDao
 ) {
     var novoNome by remember { mutableStateOf("") }
+    var linguagemEmEdicao by remember { mutableStateOf<Linguagem?>(null) }
+
+    linguagemEmEdicao?.let { linguagem ->
+        EditarLinguagemDialogo(
+            linguagem = linguagem,
+            onCancelar = { linguagemEmEdicao = null },
+            onSalvar = { atualizada ->
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        linguagemDao.atualizar(atualizada)
+                        recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+                    } catch (e: Exception) {
+                        Log.e("LinguagensScreen", "Erro ao atualizar a linguagem", e)
+                    }
+                }
+                linguagemEmEdicao = null
+            }
+        )
+    }
 
     LaunchedEffect(Unit) {
         CoroutineScope(Dispatchers.IO).launch {
@@ -187,6 +209,13 @@ fun LinguagensScreen(
                             fontSize = 16.sp,
                             modifier = Modifier.weight(1f)
                         )
+                        IconButton(onClick = { linguagemEmEdicao = linguagem }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Editar",
+                                tint = DuoTextSecondary
+                            )
+                        }
                         IconButton(onClick = {
                             CoroutineScope(Dispatchers.IO).launch {
                                 try {
@@ -209,3 +238,96 @@ fun LinguagensScreen(
         }
     }
 }
+
+@Composable
+private fun EditarLinguagemDialogo(
+    linguagem: Linguagem,
+    onCancelar: () -> Unit,
+    onSalvar: (Linguagem) -> Unit
+) {
+    var nome by remember { mutableStateOf(linguagem.nome) }
+    var sigla by remember { mutableStateOf(linguagem.sigla) }
+    var descricao by remember { mutableStateOf(linguagem.descricao) }
+
+    val podeSalvar = nome.isNotBlank() && sigla.isNotBlank()
+
+    AlertDialog(
+        onDismissRequest = onCancelar,
+        containerColor = DuoCard,
+        title = { Text("Editar linguagem", color = DuoText, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text("Nome", color = DuoTextSecondary, fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = nome,
+                    onValueChange = { nome = it },
+                    singleLine = true,
+                    colors = coresCampoLinguagem(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text("Sigla", color = DuoTextSecondary, fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = sigla,
+                    onValueChange = { sigla = it.uppercase().take(3) },
+                    singleLine = true,
+                    colors = coresCampoLinguagem(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text("Descrição", color = DuoTextSecondary, fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = descricao,
+                    onValueChange = { descricao = it },
+                    minLines = 2,
+                    colors = coresCampoLinguagem(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSalvar(
+                        linguagem.copy(
+                            nome = nome.trim(),
+                            sigla = sigla.trim(),
+                            descricao = descricao.trim()
+                        )
+                    )
+                },
+                enabled = podeSalvar,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DuoBlue,
+                    contentColor = DuoBg,
+                    disabledContainerColor = DuoCardBorder,
+                    disabledContentColor = DuoTextSecondary
+                )
+            ) {
+                Text("Salvar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancelar) {
+                Text("Cancelar", color = DuoTextSecondary)
+            }
+        }
+    )
+}
+
+@Composable
+private fun coresCampoLinguagem() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = DuoText,
+    unfocusedTextColor = DuoText,
+    focusedBorderColor = DuoBlue,
+    unfocusedBorderColor = DuoCardBorder,
+    focusedContainerColor = DuoBg,
+    unfocusedContainerColor = DuoBg
+)

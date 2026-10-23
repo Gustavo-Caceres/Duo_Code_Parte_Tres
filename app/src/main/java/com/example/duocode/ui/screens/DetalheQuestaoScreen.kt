@@ -1,5 +1,6 @@
 package com.example.duocode.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,6 +38,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.duocode.data.LinguagemDao
+import com.example.duocode.data.QuestaoDao
+import com.example.duocode.data.recarregarListas
 import com.example.duocode.model.Dificuldade
 import com.example.duocode.model.Linguagem
 import com.example.duocode.model.Questao
@@ -50,6 +54,9 @@ import com.example.duocode.ui.theme.DuoOrange
 import com.example.duocode.ui.theme.DuoPurple
 import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 private fun corDaSiglaDetalhe(sigla: String) = when (sigla) {
     "JS" -> DuoAmber
@@ -71,7 +78,9 @@ fun DetalheQuestaoScreen(
     navController: NavController,
     id: Int,
     linguagens: SnapshotStateList<Linguagem>,
-    questoes: SnapshotStateList<Questao>
+    questoes: SnapshotStateList<Questao>,
+    linguagemDao: LinguagemDao,
+    questaoDao: QuestaoDao
 ) {
     val questao = questoes.find { it.id == id }
 
@@ -109,9 +118,13 @@ fun DetalheQuestaoScreen(
 
         val linguagem = linguagens.find { it.id == questao.linguagemId }
         val alternarResolvida: () -> Unit = {
-            val indice = questoes.indexOfFirst { it.id == questao.id }
-            if (indice >= 0) {
-                questoes[indice] = questao.copy(resolvida = !questao.resolvida)
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    questaoDao.atualizar(questao.copy(resolvida = !questao.resolvida))
+                    recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
+                } catch (e: Exception) {
+                    Log.e("DetalheQuestaoScreen", "Erro ao atualizar a questão", e)
+                }
             }
         }
 
