@@ -41,9 +41,9 @@ O teste que prova que o Room está funcionando: adicionar um item, fechar o app 
 >
 > Link do vídeo: _colar aqui_
 
-| Antes de fechar | Depois de reabrir |
+| Antes de fechar: linguagem "TEste" adicionada | Depois de reabrir o app: a questão #41, criada para a linguagem "TEste", continua salva |
 |---|---|
-| 📸 _[PRINT: lista com o item novo]_ | 📸 _[PRINT: mesma lista depois de reabrir o app]_ |
+| <img src="docs/09-antes-de-fechar.png" width="260"> | <img src="docs/10-depois-de-reabrir.png" width="380"> |
 
 > 🎥 **[VÍDEO: editar um item → fechar e reabrir → a edição continua salva]**
 >
@@ -74,6 +74,20 @@ No Trabalho 3 a mudança foi feita em etapas, cada uma num commit ou pull reques
 6. **Telas de Detalhes lendo do banco.** Em vez de procurar na lista, as duas telas de Detalhes recebem só o `id` pela navegação e buscam o item com `buscarPorId(id)`.
 
 > 🎥 **[VÍDEO: tour pelo app — listas, adicionar, editar, remover, abrir os detalhes]**
+
+#### O app funcionando com o banco
+
+| Linguagens (lidas do banco) | Adicionar questão | Editar linguagem (`atualizar`) |
+|---|---|---|
+| <img src="docs/02-linguagens.png" width="240"> | <img src="docs/03-questoes-adicionar.png" width="240"> | <img src="docs/05-editar.png" width="240"> |
+
+| Detalhe da linguagem (`buscarPorId` + `buscarPorLinguagem`) | Detalhe da questão (`buscarPorId`) | Remover item (`deletar`) |
+|---|---|---|
+| <img src="docs/07-detalhe-linguagem.png" width="240"> | <img src="docs/08-detalhe-questao.png" width="240"> | 📸 _[PRINT: confirmação de remover — salvar como `docs/06-remover.png`]_ |
+
+| Trilha | Escolher questões para praticar | Quiz com as alternativas do banco | Perfil |
+|---|---|---|---|
+| <img src="docs/01-trilha.png" width="180"> | <img src="docs/12-praticar-escolha.png" width="180"> | <img src="docs/13-pergunta.png" width="180"> | <img src="docs/14-perfil.png" width="180"> |
 
 ### Entity, DAO e Database criados, e por que esses campos
 
