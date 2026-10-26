@@ -89,7 +89,6 @@ fun DetalheQuestaoScreen(
     linguagemDao: LinguagemDao,
     questaoDao: QuestaoDao
 ) {
-    // Busca a questão no banco pelo id da rota, junto com a linguagem dela e quantas questões essa linguagem tem
     var carregando by remember { mutableStateOf(true) }
     var questaoDoBanco by remember { mutableStateOf<Questao?>(null) }
     var linguagemDoBanco by remember { mutableStateOf<Linguagem?>(null) }

@@ -8,7 +8,7 @@ import androidx.room.TypeConverters
 import com.example.duocode.model.Linguagem
 import com.example.duocode.model.Questao
 
-@Database(entities = [Linguagem::class, Questao::class], version = 1)
+@Database(entities = [Linguagem::class, Questao::class], version = 2)
 @TypeConverters(Conversores::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun linguagemDao(): LinguagemDao
@@ -24,7 +24,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "duocode_database"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration(true)
+                    .build()
                 INSTANCE = instance
                 instance
             }

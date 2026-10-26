@@ -72,8 +72,6 @@ private data class Pergunta(
     val corretaIndex: Int
 )
 
-// Cada pergunta sempre tem 4 alternativas em ordem aleatória: a resposta certa e as 3 erradas cadastradas.
-// Se faltar alguma errada (questão antiga), completa com respostas de outras questões, preferindo a mesma linguagem
 private fun montarPerguntas(selecionadas: List<Questao>, todas: List<Questao>): List<Pergunta> =
     selecionadas.shuffled().map { questao ->
         val correta = questao.resposta.trim()
@@ -89,7 +87,6 @@ private fun montarPerguntas(selecionadas: List<Questao>, todas: List<Questao>): 
         Pergunta(questao, alternativas, alternativas.indexOf(correta))
     }
 
-// Junta os nomes das linguagens praticadas para o resultado: "Kotlin" ou "Python, Kotlin e SQL"
 private fun nomesDasLinguagens(perguntas: List<Pergunta>, linguagens: List<Linguagem>): String {
     val nomes = perguntas
         .mapNotNull { pergunta -> linguagens.find { it.id == pergunta.questao.linguagemId }?.nome }
@@ -101,7 +98,6 @@ private fun nomesDasLinguagens(perguntas: List<Pergunta>, linguagens: List<Lingu
     }
 }
 
-// linguagemId = -1 pratica questões de todas as linguagens
 @Composable
 fun PerguntaScreen(
     navController: NavController,
@@ -152,7 +148,6 @@ private fun SelecaoQuestoes(
     onFechar: () -> Unit,
     onComecar: (List<Questao>) -> Unit
 ) {
-    // Guarda as desmarcadas para que toda questão comece selecionada
     val desmarcadas = remember { mutableStateListOf<Int>() }
     val praticaveis = questoes.filter { it.resposta.isNotBlank() }
     val selecionadas = praticaveis.filter { it.id !in desmarcadas }
@@ -345,7 +340,6 @@ private fun Pratica(
 
         pergunta.alternativas.forEachIndexed { indice, texto ->
             val marcada = indice == selecionada
-            // Depois de responder, a certa fica verde e a escolhida errada fica laranja
             val corDestaque = when {
                 respondida && indice == pergunta.corretaIndex -> DuoGreen
                 respondida && marcada -> DuoOrange

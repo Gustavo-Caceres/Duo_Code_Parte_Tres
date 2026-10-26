@@ -29,7 +29,6 @@ suspend fun inserirDadosIniciais(linguagemDao: LinguagemDao, questaoDao: Questao
         )
 
     listOf(
-        // JavaScript
         questao("JS", Dificuldade.FACIL, "Qual é a saída de arr.length após arr.push(4), se arr = [1, 2, 3]?", "4", "3", "undefined", "Error"),
         questao("JS", Dificuldade.FACIL, "Qual a diferença entre let e const?", "const não pode ser reatribuída", "let não pode ser reatribuída", "const só funciona em funções", "Não há diferença"),
         questao("JS", Dificuldade.FACIL, "O que typeof null retorna?", "\"object\"", "\"null\"", "\"undefined\"", "\"number\""),
@@ -41,7 +40,6 @@ suspend fun inserirDadosIniciais(linguagemDao: LinguagemDao, questaoDao: Questao
         questao("JS", Dificuldade.DIFICIL, "Qual a ordem de execução do event loop?", "call stack, microtasks, macrotasks", "macrotasks, microtasks, call stack", "microtasks, call stack, macrotasks", "call stack, macrotasks, microtasks"),
         questao("JS", Dificuldade.DIFICIL, "O que \"5\" - 2 retorna?", "3", "\"52\"", "NaN", "\"3\""),
 
-        // Python
         questao("PY", Dificuldade.FACIL, "O que len(\"dev\") retorna?", "3", "2", "4", "Error"),
         questao("PY", Dificuldade.FACIL, "Qual função mostra um texto na tela?", "print()", "echo()", "console.log()", "write()"),
         questao("PY", Dificuldade.FACIL, "Qual o resultado de 7 // 2?", "3", "3.5", "4", "1"),
@@ -53,7 +51,6 @@ suspend fun inserirDadosIniciais(linguagemDao: LinguagemDao, questaoDao: Questao
         questao("PY", Dificuldade.DIFICIL, "O que um decorator recebe como argumento?", "Uma função", "Um módulo", "Uma lista de argumentos", "Uma exceção"),
         questao("PY", Dificuldade.DIFICIL, "Como se chama a função que produz valores sob demanda com yield?", "Gerador", "Lista", "Dicionário", "Tupla"),
 
-        // Kotlin
         questao("KT", Dificuldade.FACIL, "Qual palavra-chave declara uma variável que pode mudar?", "var", "val", "let", "mut"),
         questao("KT", Dificuldade.FACIL, "Qual palavra-chave declara uma função?", "fun", "def", "function", "func"),
         questao("KT", Dificuldade.FACIL, "Qual o tipo de \"texto\"?", "String", "Char", "Text", "Str"),
@@ -65,7 +62,6 @@ suspend fun inserirDadosIniciais(linguagemDao: LinguagemDao, questaoDao: Questao
         questao("KT", Dificuldade.DIFICIL, "Qual escopo de coroutine acompanha o ciclo de vida de uma ViewModel?", "viewModelScope", "GlobalScope", "lifecycleScope", "MainScope"),
         questao("KT", Dificuldade.DIFICIL, "Qual palavra-chave deixa uma função pausar sem bloquear a thread?", "suspend", "async", "await", "pause"),
 
-        // SQL
         questao("SQL", Dificuldade.FACIL, "Qual comando busca dados de uma tabela?", "SELECT", "GET", "FETCH", "SHOW"),
         questao("SQL", Dificuldade.FACIL, "Qual comando adiciona uma linha na tabela?", "INSERT", "ADD", "UPDATE", "CREATE"),
         questao("SQL", Dificuldade.FACIL, "Qual cláusula filtra as linhas de uma consulta?", "WHERE", "HAVING", "ORDER BY", "GROUP BY"),

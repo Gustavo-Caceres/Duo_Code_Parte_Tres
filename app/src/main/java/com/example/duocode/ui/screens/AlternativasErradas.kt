@@ -26,12 +26,9 @@ fun lembrarAlternativasErradas(iniciais: List<String> = emptyList()): SnapshotSt
     mutableStateListOf(*Array(QUANTIDADE_ALTERNATIVAS_ERRADAS) { iniciais.getOrElse(it) { "" } })
 }
 
-// Descarta os campos vazios; cada alternativa fica em uma linha só porque é assim que o banco guarda a lista
 fun alternativasPreenchidas(alternativas: List<String>): List<String> =
     alternativas.map { it.replace("\n", " ").trim() }.filter { it.isNotBlank() }
 
-// Regras de uma questão válida: a resposta certa e as 3 erradas preenchidas e todas diferentes,
-// para o Praticar sempre ter 4 alternativas. Retorna a mensagem do primeiro problema, ou null se estiver ok
 fun validarQuestao(
     enunciado: String,
     resposta: String,
@@ -60,7 +57,6 @@ fun MensagemDeErro(mensagem: String?) {
     }
 }
 
-// Campos usados ao criar e ao editar uma questão
 @Composable
 fun CamposAlternativasErradas(alternativas: SnapshotStateList<String>, cores: TextFieldColors) {
     Text("Alternativas erradas", color = DuoTextSecondary, fontSize = 13.sp)
