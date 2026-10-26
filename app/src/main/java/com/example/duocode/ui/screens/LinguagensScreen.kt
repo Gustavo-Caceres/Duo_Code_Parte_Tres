@@ -86,7 +86,6 @@ fun LinguagensScreen(
     var linguagemParaRemover by remember { mutableStateOf<Linguagem?>(null) }
     val erroNovoNome = validarNomeLinguagem(novoNome, linguagens)
 
-    // Remover uma linguagem apaga as questões dela junto (CASCADE), então pede confirmação antes
     linguagemParaRemover?.let { linguagem ->
         val totalDeQuestoes = questoes.count { it.linguagemId == linguagem.id }
         AlertDialog(
@@ -289,7 +288,6 @@ fun LinguagensScreen(
     }
 }
 
-// Regras do nome da linguagem; retorna a mensagem do primeiro problema, ou null se estiver ok
 private fun validarNomeLinguagem(nome: String, linguagens: List<Linguagem>, idAtual: Int = 0): String? = when {
     nome.isBlank() -> "Digite o nome da linguagem"
     nome.trim().length < 2 -> "O nome precisa ter pelo menos 2 letras"

@@ -229,14 +229,12 @@ private fun NovaQuestaoFormulario(
     var dificuldade by remember { mutableStateOf(Dificuldade.FACIL) }
     val alternativasErradas = lembrarAlternativasErradas()
 
-    // Se a linguagem escolhida for removida, volta para a primeira disponível
     val linguagemSelecionada = linguagens.find { it.id == linguagemId } ?: linguagens.firstOrNull()
     val erro = if (linguagemSelecionada == null) {
         "Cadastre uma linguagem antes de criar questões"
     } else {
         validarQuestao(enunciado, resposta, alternativasErradas, questoes)
     }
-    // Só mostra o erro depois que a pessoa começa a preencher, para o formulário não abrir todo vermelho
     val comecouAPreencher = enunciado.isNotBlank() || resposta.isNotBlank() || alternativasErradas.any { it.isNotBlank() }
 
     Card(

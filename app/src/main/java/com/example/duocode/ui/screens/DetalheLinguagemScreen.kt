@@ -102,7 +102,6 @@ private fun corDaDificuldade(dificuldade: Dificuldade): Color = when (dificuldad
     Dificuldade.DIFICIL -> DuoOrange
 }
 
-// Mostrado enquanto a tela de detalhe espera a resposta do banco
 @Composable
 fun CarregandoDetalhe(modifier: Modifier = Modifier) {
     Column(
@@ -126,7 +125,6 @@ fun DetalheLinguagemScreen(
     linguagemDao: LinguagemDao,
     questaoDao: QuestaoDao
 ) {
-    // O detalhe não usa as listas em memória: busca a linguagem e as questões dela no banco pelo id da rota
     var carregando by remember { mutableStateOf(true) }
     var linguagemDoBanco by remember { mutableStateOf<Linguagem?>(null) }
     val questoesDaLinguagem = remember { mutableStateListOf<Questao>() }
@@ -193,7 +191,6 @@ fun DetalheLinguagemScreen(
             return@Scaffold
         }
 
-        // O detalhe combina as duas tabelas: tudo abaixo é calculado a partir das questões desta linguagem
         val resolvidas = questoesDaLinguagem.count { it.resolvida }
         val cor = corDaLinguagem(linguagem.sigla)
 
@@ -416,7 +413,6 @@ private fun DistribuicaoDificuldade(questoes: List<Questao>) {
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Cada fatia da barra ocupa um peso proporcional à quantidade de questões daquela dificuldade
         Row(
             horizontalArrangement = Arrangement.spacedBy(3.dp),
             modifier = Modifier
@@ -507,7 +503,6 @@ private fun CriarQuestaoDialogo(
     val alternativasErradas = lembrarAlternativasErradas()
 
     val erro = validarQuestao(enunciado, resposta, alternativasErradas, questoes)
-    // Só mostra o erro depois que a pessoa começa a preencher, para o diálogo não abrir todo vermelho
     val comecouAPreencher = enunciado.isNotBlank() || resposta.isNotBlank() || alternativasErradas.any { it.isNotBlank() }
 
     val coresCampo = OutlinedTextFieldDefaults.colors(
