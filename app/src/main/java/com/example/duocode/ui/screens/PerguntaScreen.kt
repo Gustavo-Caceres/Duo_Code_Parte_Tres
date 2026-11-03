@@ -41,14 +41,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.duocode.data.AppDatabase
 import com.example.duocode.data.Linguagem
 import com.example.duocode.data.Questao
+import com.example.duocode.data.repository.LinguagemRepository
+import com.example.duocode.data.repository.QuestaoRepository
 import com.example.duocode.ui.navigation.Rotas
 import com.example.duocode.ui.theme.DuoBg
 import com.example.duocode.ui.theme.DuoBlue
@@ -58,7 +63,9 @@ import com.example.duocode.ui.theme.DuoGreen
 import com.example.duocode.ui.theme.DuoOrange
 import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
+import com.example.duocode.viewmodel.QUANTIDADE_ALTERNATIVAS_ERRADAS
 import com.example.duocode.viewmodel.QuestoesViewModel
+import com.example.duocode.viewmodel.QuestoesViewModelFactory
 
 private data class Pergunta(
     val questao: Questao,
@@ -96,7 +103,12 @@ private fun nomesDasLinguagens(perguntas: List<Pergunta>, linguagens: List<Lingu
 fun PerguntaScreen(
     navController: NavController,
     linguagemId: Int,
-    viewModel: QuestoesViewModel
+    viewModel: QuestoesViewModel = viewModel(
+        factory = QuestoesViewModelFactory(
+            LinguagemRepository(AppDatabase.getDatabase(LocalContext.current).linguagemDao()),
+            QuestaoRepository(AppDatabase.getDatabase(LocalContext.current).questaoDao())
+        )
+    )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val linguagens = uiState.linguagens

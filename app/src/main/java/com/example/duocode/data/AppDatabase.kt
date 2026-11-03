@@ -30,7 +30,6 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                     .fallbackToDestructiveMigration(true)
                     .addCallback(object : Callback() {
-                        // roda sempre que o banco abre; inserirDadosIniciais só insere se estiver vazio
                         override fun onOpen(db: SupportSQLiteDatabase) {
                             CoroutineScope(Dispatchers.IO).launch {
                                 try {

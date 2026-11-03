@@ -33,20 +33,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.duocode.data.Linguagem
+import com.example.duocode.data.AppDatabase
+import com.example.duocode.data.repository.LinguagemRepository
+import com.example.duocode.data.repository.QuestaoRepository
 import com.example.duocode.ui.theme.DuoBg
 import com.example.duocode.ui.theme.DuoBlue
 import com.example.duocode.ui.theme.DuoCard
@@ -55,6 +56,7 @@ import com.example.duocode.ui.theme.DuoOrange
 import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
 import com.example.duocode.viewmodel.LinguagensViewModel
+import com.example.duocode.viewmodel.LinguagensViewModelFactory
 
 private fun corDaSigla(sigla: String): Color = when (sigla) {
     "JS" -> com.example.duocode.ui.theme.DuoAmber
@@ -67,15 +69,20 @@ private fun corDaSigla(sigla: String): Color = when (sigla) {
 @Composable
 fun LinguagensScreen(
     navController: NavController,
-    viewModel: LinguagensViewModel
+    viewModel: LinguagensViewModel = viewModel(
+        factory = LinguagensViewModelFactory(
+            LinguagemRepository(AppDatabase.getDatabase(LocalContext.current).linguagemDao()),
+            QuestaoRepository(AppDatabase.getDatabase(LocalContext.current).questaoDao())
+        )
+    )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val linguagens = uiState.linguagens
     val novoNome = uiState.novoNome
-    val erroNovoNome = validarNomeLinguagem(novoNome, linguagens)
+    val erroNovoNome = uiState.erroNovoNome
 
     uiState.linguagemParaRemover?.let { linguagem ->
-        val totalDeQuestoes = uiState.questoes.count { it.linguagemId == linguagem.id }
+        val totalDeQuestoes = uiState.questoesDaLinguagemParaRemover
         AlertDialog(
             onDismissRequest = { viewModel.pedirRemocao(null) },
             containerColor = DuoCard,
@@ -108,10 +115,15 @@ fun LinguagensScreen(
 
     uiState.linguagemEmEdicao?.let { linguagem ->
         EditarLinguagemDialogo(
-            linguagem = linguagem,
-            linguagens = linguagens,
+            nome = uiState.nomeEdicao,
+            sigla = uiState.siglaEdicao,
+            descricao = uiState.descricaoEdicao,
+            erro = uiState.erroEdicao,
+            onNomeChange = { viewModel.alterarNomeEdicao(it) },
+            onSiglaChange = { viewModel.alterarSiglaEdicao(it) },
+            onDescricaoChange = { viewModel.alterarDescricaoEdicao(it) },
             onCancelar = { viewModel.editarLinguagem(null) },
-            onSalvar = { atualizada -> viewModel.atualizarLinguagem(atualizada) }
+            onSalvar = { viewModel.atualizarLinguagem() }
         )
     }
 
@@ -153,7 +165,7 @@ fun LinguagensScreen(
             Spacer(modifier = Modifier.width(8.dp))
             Button(
                 enabled = erroNovoNome == null,
-                onClick = { if (erroNovoNome == null) viewModel.adicionarLinguagem() },
+                onClick = { viewModel.adicionarLinguagem() },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DuoBlue,
                     contentColor = DuoBg,
@@ -232,30 +244,18 @@ fun LinguagensScreen(
     }
 }
 
-private fun validarNomeLinguagem(nome: String, linguagens: List<Linguagem>, idAtual: Int = 0): String? = when {
-    nome.isBlank() -> "Digite o nome da linguagem"
-    nome.trim().length < 2 -> "O nome precisa ter pelo menos 2 letras"
-    nome.trim().length > 20 -> "O nome pode ter no máximo 20 letras"
-    linguagens.any { it.id != idAtual && it.nome.equals(nome.trim(), ignoreCase = true) } ->
-        "Já existe uma linguagem com esse nome"
-    else -> null
-}
-
 @Composable
 private fun EditarLinguagemDialogo(
-    linguagem: Linguagem,
-    linguagens: List<Linguagem>,
+    nome: String,
+    sigla: String,
+    descricao: String,
+    erro: String?,
+    onNomeChange: (String) -> Unit,
+    onSiglaChange: (String) -> Unit,
+    onDescricaoChange: (String) -> Unit,
     onCancelar: () -> Unit,
-    onSalvar: (Linguagem) -> Unit
+    onSalvar: () -> Unit
 ) {
-    var nome by remember { mutableStateOf(linguagem.nome) }
-    var sigla by remember { mutableStateOf(linguagem.sigla) }
-    var descricao by remember { mutableStateOf(linguagem.descricao) }
-
-    val erro = validarNomeLinguagem(nome, linguagens, idAtual = linguagem.id)
-        ?: if (sigla.isBlank()) "Informe a sigla (até 3 letras)" else null
-    val podeSalvar = erro == null
-
     AlertDialog(
         onDismissRequest = onCancelar,
         containerColor = DuoCard,
@@ -266,7 +266,7 @@ private fun EditarLinguagemDialogo(
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(
                     value = nome,
-                    onValueChange = { nome = it },
+                    onValueChange = onNomeChange,
                     singleLine = true,
                     colors = coresCampoLinguagem(),
                     modifier = Modifier.fillMaxWidth()
@@ -278,7 +278,7 @@ private fun EditarLinguagemDialogo(
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(
                     value = sigla,
-                    onValueChange = { texto -> sigla = texto.filter { it.isLetterOrDigit() }.uppercase().take(3) },
+                    onValueChange = onSiglaChange,
                     singleLine = true,
                     colors = coresCampoLinguagem(),
                     modifier = Modifier.fillMaxWidth()
@@ -290,7 +290,7 @@ private fun EditarLinguagemDialogo(
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(
                     value = descricao,
-                    onValueChange = { descricao = it },
+                    onValueChange = onDescricaoChange,
                     minLines = 2,
                     colors = coresCampoLinguagem(),
                     modifier = Modifier.fillMaxWidth()
@@ -304,16 +304,8 @@ private fun EditarLinguagemDialogo(
         },
         confirmButton = {
             Button(
-                onClick = {
-                    onSalvar(
-                        linguagem.copy(
-                            nome = nome.trim(),
-                            sigla = sigla.trim(),
-                            descricao = descricao.trim()
-                        )
-                    )
-                },
-                enabled = podeSalvar,
+                onClick = onSalvar,
+                enabled = erro == null,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DuoBlue,
                     contentColor = DuoBg,

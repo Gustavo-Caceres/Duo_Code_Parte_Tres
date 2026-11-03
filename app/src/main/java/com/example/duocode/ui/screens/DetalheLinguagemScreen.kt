@@ -19,8 +19,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -48,24 +48,26 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import com.example.duocode.data.AppDatabase
 import com.example.duocode.data.Dificuldade
 import com.example.duocode.data.Linguagem
 import com.example.duocode.data.Questao
+import com.example.duocode.data.repository.LinguagemRepository
+import com.example.duocode.data.repository.QuestaoRepository
 import com.example.duocode.ui.navigation.Rotas
 import com.example.duocode.ui.theme.DuoAmber
 import com.example.duocode.ui.theme.DuoBg
@@ -77,7 +79,9 @@ import com.example.duocode.ui.theme.DuoOrange
 import com.example.duocode.ui.theme.DuoPurple
 import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
+import com.example.duocode.viewmodel.FormularioQuestao
 import com.example.duocode.viewmodel.QuestoesViewModel
+import com.example.duocode.viewmodel.QuestoesViewModelFactory
 
 private fun corDaLinguagem(sigla: String): Color = when (sigla) {
     "JS" -> DuoAmber
@@ -111,14 +115,18 @@ fun CarregandoDetalhe(modifier: Modifier = Modifier) {
 fun DetalheLinguagemScreen(
     navController: NavController,
     linguagemId: Int,
-    viewModel: QuestoesViewModel
+    viewModel: QuestoesViewModel = viewModel(
+        factory = QuestoesViewModelFactory(
+            LinguagemRepository(AppDatabase.getDatabase(LocalContext.current).linguagemDao()),
+            QuestaoRepository(AppDatabase.getDatabase(LocalContext.current).questaoDao())
+        )
+    )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val questoes = uiState.questoes
     val carregando = uiState.carregando
     val linguagem = uiState.linguagens.find { it.id == linguagemId }
     val questoesDaLinguagem = questoes.filter { it.linguagemId == linguagemId }
-    var mostrarDialogo by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = DuoBg,
@@ -224,7 +232,7 @@ fun DetalheLinguagemScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             OutlinedButton(
-                onClick = { mostrarDialogo = true },
+                onClick = { viewModel.abrirNovaQuestao(linguagem.id) },
                 shape = RoundedCornerShape(14.dp),
                 border = BorderStroke(1.dp, DuoBlue),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = DuoBlue),
@@ -253,23 +261,14 @@ fun DetalheLinguagemScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        if (mostrarDialogo) {
+        if (uiState.criandoQuestao) {
             CriarQuestaoDialogo(
                 nomeLinguagem = linguagem.nome,
-                questoes = questoes,
-                onCancelar = { mostrarDialogo = false },
-                onConfirmar = { enunciado, resposta, dificuldade, alternativasErradas ->
-                    viewModel.adicionarQuestao(
-                        Questao(
-                            enunciado = enunciado,
-                            resposta = resposta,
-                            linguagemId = linguagem.id,
-                            dificuldade = dificuldade,
-                            alternativasErradas = alternativasErradas
-                        )
-                    )
-                    mostrarDialogo = false
-                }
+                formulario = uiState.novaQuestao,
+                erro = uiState.erroNovaQuestao,
+                onAlterar = { viewModel.alterarNovaQuestao(it) },
+                onCancelar = { viewModel.fecharNovaQuestao() },
+                onConfirmar = { viewModel.adicionarQuestao() }
             )
         }
     }
@@ -441,18 +440,12 @@ private fun QuestaoItem(questao: Questao, onAlternarResolvida: () -> Unit) {
 @Composable
 private fun CriarQuestaoDialogo(
     nomeLinguagem: String,
-    questoes: List<Questao>,
+    formulario: FormularioQuestao,
+    erro: String?,
+    onAlterar: (FormularioQuestao) -> Unit,
     onCancelar: () -> Unit,
-    onConfirmar: (enunciado: String, resposta: String, dificuldade: Dificuldade, alternativasErradas: List<String>) -> Unit
+    onConfirmar: () -> Unit
 ) {
-    var enunciado by remember { mutableStateOf("") }
-    var resposta by remember { mutableStateOf("") }
-    var dificuldade by remember { mutableStateOf(Dificuldade.FACIL) }
-    val alternativasErradas = lembrarAlternativasErradas()
-
-    val erro = validarQuestao(enunciado, resposta, alternativasErradas, questoes)
-    val comecouAPreencher = enunciado.isNotBlank() || resposta.isNotBlank() || alternativasErradas.any { it.isNotBlank() }
-
     val coresCampo = OutlinedTextFieldDefaults.colors(
         focusedTextColor = DuoText,
         unfocusedTextColor = DuoText,
@@ -474,30 +467,32 @@ private fun CriarQuestaoDialogo(
                 modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
                 OutlinedTextField(
-                    value = enunciado,
-                    onValueChange = { enunciado = it },
+                    value = formulario.enunciado,
+                    onValueChange = { onAlterar(formulario.copy(enunciado = it)) },
                     label = { Text("Enunciado") },
                     minLines = 2,
                     colors = coresCampo,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
-                    value = resposta,
-                    onValueChange = { resposta = it },
+                    value = formulario.resposta,
+                    onValueChange = { onAlterar(formulario.copy(resposta = it)) },
                     label = { Text("Resposta certa") },
                     singleLine = true,
                     colors = coresCampo,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Column {
-                    CamposAlternativasErradas(alternativasErradas, coresCampo)
+                    CamposAlternativasErradas(formulario.alternativasErradas, coresCampo) { indice, texto ->
+                        onAlterar(formulario.comAlternativa(indice, texto))
+                    }
                 }
                 Text("Dificuldade", color = DuoTextSecondary, fontSize = 13.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Dificuldade.entries.forEach { opcao ->
                         FilterChip(
-                            selected = dificuldade == opcao,
-                            onClick = { dificuldade = opcao },
+                            selected = formulario.dificuldade == opcao,
+                            onClick = { onAlterar(formulario.copy(dificuldade = opcao)) },
                             label = { Text(opcao.rotulo) },
                             colors = FilterChipDefaults.filterChipColors(
                                 labelColor = DuoTextSecondary,
@@ -507,18 +502,14 @@ private fun CriarQuestaoDialogo(
                         )
                     }
                 }
-                if (comecouAPreencher) {
+                if (formulario.comecouAPreencher) {
                     MensagemDeErro(erro)
                 }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = {
-                    if (erro == null) {
-                        onConfirmar(enunciado.trim(), resposta.trim(), dificuldade, alternativasPreenchidas(alternativasErradas))
-                    }
-                },
+                onClick = onConfirmar,
                 enabled = erro == null
             ) {
                 Text("Adicionar", color = if (erro == null) DuoBlue else DuoTextSecondary)
