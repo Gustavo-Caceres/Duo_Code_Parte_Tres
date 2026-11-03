@@ -33,11 +33,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
@@ -50,7 +45,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.duocode.data.AppDatabase
-import com.example.duocode.data.Linguagem
 import com.example.duocode.data.Questao
 import com.example.duocode.data.repository.LinguagemRepository
 import com.example.duocode.data.repository.QuestaoRepository
@@ -63,89 +57,57 @@ import com.example.duocode.ui.theme.DuoGreen
 import com.example.duocode.ui.theme.DuoOrange
 import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
-import com.example.duocode.viewmodel.QUANTIDADE_ALTERNATIVAS_ERRADAS
-import com.example.duocode.viewmodel.QuestoesViewModel
-import com.example.duocode.viewmodel.QuestoesViewModelFactory
-
-private data class Pergunta(
-    val questao: Questao,
-    val alternativas: List<String>,
-    val corretaIndex: Int
-)
-
-private fun montarPerguntas(selecionadas: List<Questao>, todas: List<Questao>): List<Pergunta> =
-    selecionadas.shuffled().map { questao ->
-        val correta = questao.resposta.trim()
-        val mesmaLinguagem = todas.filter { it.linguagemId == questao.linguagemId }.shuffled()
-        val outras = todas.filter { it.linguagemId != questao.linguagemId }.shuffled()
-        val reservas = (mesmaLinguagem + outras).map { it.resposta }
-        val erradas = (questao.alternativasErradas + reservas)
-            .map { it.trim() }
-            .filter { it.isNotBlank() && !it.equals(correta, ignoreCase = true) }
-            .distinctBy { it.lowercase() }
-            .take(QUANTIDADE_ALTERNATIVAS_ERRADAS)
-        val alternativas = (erradas + correta).shuffled()
-        Pergunta(questao, alternativas, alternativas.indexOf(correta))
-    }
-
-private fun nomesDasLinguagens(perguntas: List<Pergunta>, linguagens: List<Linguagem>): String {
-    val nomes = perguntas
-        .mapNotNull { pergunta -> linguagens.find { it.id == pergunta.questao.linguagemId }?.nome }
-        .distinct()
-    return when (nomes.size) {
-        0 -> "programação"
-        1 -> nomes.first()
-        else -> nomes.dropLast(1).joinToString(", ") + " e " + nomes.last()
-    }
-}
+import com.example.duocode.viewmodel.PraticaUiState
+import com.example.duocode.viewmodel.PraticaViewModel
+import com.example.duocode.viewmodel.PraticaViewModelFactory
 
 @Composable
 fun PerguntaScreen(
     navController: NavController,
     linguagemId: Int,
-    viewModel: QuestoesViewModel = viewModel(
-        factory = QuestoesViewModelFactory(
+    viewModel: PraticaViewModel = viewModel(
+        factory = PraticaViewModelFactory(
             LinguagemRepository(AppDatabase.getDatabase(LocalContext.current).linguagemDao()),
-            QuestaoRepository(AppDatabase.getDatabase(LocalContext.current).questaoDao())
+            QuestaoRepository(AppDatabase.getDatabase(LocalContext.current).questaoDao()),
+            linguagemId
         )
     )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val linguagens = uiState.linguagens
-    val questoes = uiState.questoes
-    var perguntas by remember { mutableStateOf<List<Pergunta>?>(null) }
-    val perguntasAtuais = perguntas
 
-    if (perguntasAtuais == null) {
-        val linguagem = linguagens.find { it.id == linguagemId }
+    if (uiState.perguntas == null) {
         SelecaoQuestoes(
-            titulo = if (linguagem != null) "Praticar ${linguagem.nome}" else "Praticar",
-            questoes = questoes.filter { linguagemId == -1 || it.linguagemId == linguagemId },
-            linguagens = linguagens,
+            uiState = uiState,
+            onAlternar = { viewModel.alternarSelecao(it) },
             onFechar = { navController.popBackStack() },
-            onComecar = { selecionadas -> perguntas = montarPerguntas(selecionadas, questoes) }
+            onComecar = { viewModel.comecar() }
         )
     } else {
         Pratica(
-            navController = navController,
-            perguntas = perguntasAtuais,
-            linguagens = linguagens,
-            onAcertar = { questao -> viewModel.marcarComoResolvida(questao) }
+            uiState = uiState,
+            onFechar = { navController.popBackStack() },
+            onEscolher = { viewModel.escolherAlternativa(it) },
+            onConfirmar = { viewModel.confirmar() },
+            onProxima = { viewModel.proxima() },
+            onFinalizar = {
+                navController.navigate("resultado/${uiState.acertos}/${uiState.total}/${Uri.encode(uiState.linguagensPraticadas)}") {
+                    popUpTo(Rotas.TRILHA)
+                    launchSingleTop = true
+                }
+            }
         )
     }
 }
 
 @Composable
 private fun SelecaoQuestoes(
-    titulo: String,
-    questoes: List<Questao>,
-    linguagens: List<Linguagem>,
+    uiState: PraticaUiState,
+    onAlternar: (Questao) -> Unit,
     onFechar: () -> Unit,
-    onComecar: (List<Questao>) -> Unit
+    onComecar: () -> Unit
 ) {
-    val desmarcadas = remember { mutableStateListOf<Int>() }
-    val praticaveis = questoes.filter { it.resposta.isNotBlank() }
-    val selecionadas = praticaveis.filter { it.id !in desmarcadas }
+    val questoes = uiState.questoesDaPratica
+    val selecionadas = uiState.selecionadas
 
     Column(
         modifier = Modifier
@@ -159,14 +121,14 @@ private fun SelecaoQuestoes(
             }
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = titulo,
+                text = uiState.titulo,
                 color = DuoText,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = "${selecionadas.size}/${praticaveis.size}",
+                text = "${selecionadas.size}/${uiState.praticaveis.size}",
                 color = DuoTextSecondary,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 13.sp
@@ -200,11 +162,9 @@ private fun SelecaoQuestoes(
             }
             items(questoes, key = { it.id }) { questao ->
                 val temResposta = questao.resposta.isNotBlank()
-                val marcada = temResposta && questao.id !in desmarcadas
-                val alternar = {
-                    if (marcada) desmarcadas.add(questao.id) else desmarcadas.remove(questao.id)
-                }
-                val linguagem = linguagens.find { it.id == questao.linguagemId }
+                val marcada = temResposta && questao.id !in uiState.desmarcadas
+                val alternar = { onAlternar(questao) }
+                val linguagem = uiState.linguagens.find { it.id == questao.linguagemId }
 
                 Card(
                     shape = RoundedCornerShape(12.dp),
@@ -255,7 +215,7 @@ private fun SelecaoQuestoes(
         Spacer(modifier = Modifier.height(12.dp))
 
         Button(
-            onClick = { onComecar(selecionadas) },
+            onClick = onComecar,
             enabled = selecionadas.isNotEmpty(),
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(
@@ -275,21 +235,20 @@ private fun SelecaoQuestoes(
 
 @Composable
 private fun Pratica(
-    navController: NavController,
-    perguntas: List<Pergunta>,
-    linguagens: List<Linguagem>,
-    onAcertar: (Questao) -> Unit
+    uiState: PraticaUiState,
+    onFechar: () -> Unit,
+    onEscolher: (Int) -> Unit,
+    onConfirmar: () -> Unit,
+    onProxima: () -> Unit,
+    onFinalizar: () -> Unit
 ) {
-    var indiceAtual by remember { mutableIntStateOf(0) }
-    var selecionada by remember { mutableIntStateOf(-1) }
-    var respondida by remember { mutableStateOf(false) }
-    var acertos by remember { mutableIntStateOf(0) }
-
-    val total = perguntas.size
-    val pergunta = perguntas[indiceAtual]
-    val ultimaPergunta = indiceAtual == total - 1
-    val acertou = selecionada == pergunta.corretaIndex
-    val linguagem = linguagens.find { it.id == pergunta.questao.linguagemId }
+    val pergunta = uiState.perguntaAtual ?: return
+    val indiceAtual = uiState.indiceAtual
+    val total = uiState.total
+    val selecionada = uiState.selecionada
+    val respondida = uiState.respondida
+    val acertou = uiState.acertou
+    val linguagem = uiState.linguagens.find { it.id == pergunta.questao.linguagemId }
 
     Column(
         modifier = Modifier
@@ -298,7 +257,7 @@ private fun Pratica(
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { navController.popBackStack() }) {
+            IconButton(onClick = onFechar) {
                 Icon(Icons.Default.Close, contentDescription = "Fechar", tint = DuoTextSecondary)
             }
             Spacer(modifier = Modifier.width(4.dp))
@@ -348,7 +307,7 @@ private fun Pratica(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 10.dp)
-                    .clickable(enabled = !respondida) { selecionada = indice }
+                    .clickable(enabled = !respondida) { onEscolher(indice) }
             ) {
                 Row(
                     modifier = Modifier.padding(14.dp),
@@ -388,22 +347,10 @@ private fun Pratica(
 
         Button(
             onClick = {
-                if (!respondida) {
-                    respondida = true
-                    if (acertou) {
-                        acertos++
-                        onAcertar(pergunta.questao)
-                    }
-                } else if (ultimaPergunta) {
-                    val praticadas = nomesDasLinguagens(perguntas, linguagens)
-                    navController.navigate("resultado/$acertos/$total/${Uri.encode(praticadas)}") {
-                        popUpTo(Rotas.TRILHA)
-                        launchSingleTop = true
-                    }
-                } else {
-                    indiceAtual++
-                    selecionada = -1
-                    respondida = false
+                when {
+                    !respondida -> onConfirmar()
+                    uiState.ultimaPergunta -> onFinalizar()
+                    else -> onProxima()
                 }
             },
             enabled = selecionada != -1,
@@ -421,7 +368,7 @@ private fun Pratica(
             Text(
                 text = when {
                     !respondida -> "Confirmar"
-                    ultimaPergunta -> "Finalizar"
+                    uiState.ultimaPergunta -> "Finalizar"
                     else -> "Próxima"
                 },
                 fontWeight = FontWeight.Bold
