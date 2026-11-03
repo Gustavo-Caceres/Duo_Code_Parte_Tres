@@ -148,14 +148,4 @@ class QuestoesViewModel(
             }
         }
     }
-
-    fun marcarComoResolvida(questao: Questao) {
-        viewModelScope.launch {
-            try {
-                questaoRepository.atualizar(questao.copy(resolvida = true))
-            } catch (e: Exception) {
-                Log.e("QuestoesViewModel", "Erro ao marcar a questão como resolvida", e)
-            }
-        }
-    }
 }
