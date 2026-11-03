@@ -31,7 +31,15 @@ Se o celular já tinha uma versão antiga do app instalada, o banco antigo é re
 
 ## Trabalho 4 - Arquitetura MVVM
 
-> **TODO (trio):** colocar aqui os prints e o vídeo do app funcionando depois da reorganização (adicionar, editar, remover, fechar e abrir de novo), e o link da apresentação, se tiver.
+Os slides estão em [`DuoCode_Documentacao_T4.pdf`](./DuoCode_Documentacao_T4.pdf) e as decisões do trio, em [`PROCESSO.md`](./PROCESSO.md). Os prints abaixo são do app rodando no emulador, depois da reorganização:
+
+| Adicionar | Fechar e abrir de novo | Editar | Remover |
+|---|---|---|---|
+| <img src="docs/prints/04-linguagem-adicionada.png" width="200"> | <img src="docs/prints/05-depois-de-reabrir.png" width="200"> | <img src="docs/prints/06-editar-linguagem.png" width="200"> | <img src="docs/prints/08-remover-linguagem.png" width="200"> |
+
+| Detalhe da linguagem | Quiz | Resultado | Questões |
+|---|---|---|---|
+| <img src="docs/prints/11-detalhe-linguagem-resolvida.png" width="200"> | <img src="docs/prints/19-resposta-errada.png" width="200"> | <img src="docs/prints/21-resultado.png" width="200"> | <img src="docs/prints/13-questoes.png" width="200"> |
 
 ### Como estava o projeto no Trabalho 3, e o que mudou
 
@@ -51,9 +59,9 @@ Tela (@Composable)  ->  ViewModel  ->  Repository  ->  DAO  ->  Room
 ```
 
 - **DAO reativo:** o `buscarTodos()` dos dois DAOs agora retorna `Flow<List<...>>` (e deixou de ser `suspend`). O Room emite a lista de novo sozinho sempre que a tabela muda, então o `recarregarListas(...)` foi apagado.
-- **Repository:** `LinguagemRepository` e `QuestaoRepository` recebem o DAO no construtor e só repassam as chamadas para ele.
-- **ViewModel + UiState:** `LinguagensViewModel` e `QuestoesViewModel` observam os `Flow` do Repository e guardam o estado da tela num `MutableStateFlow` privado (`_uiState`), expondo só um `StateFlow` de leitura (`uiState`). As ações (`adicionarLinguagem()`, `removerQuestao(...)`, etc.) rodam o Repository dentro de `viewModelScope.launch { ... }`.
-- **ViewModelFactory:** `LinguagensViewModelFactory` e `QuestoesViewModelFactory` entregam os Repositories para o ViewModel. No `AppNavigation.kt` cada tela recebe o seu com `viewModel(factory = ...)`.
+- **Repository:** `LinguagemRepository` e `QuestaoRepository` recebem o DAO no construtor e só repassam as chamadas para ele. Cada um tem um `criar(context)`, que pega o DAO no `AppDatabase`, para a tela não precisar citar o banco.
+- **ViewModel + UiState:** `LinguagensViewModel`, `QuestoesViewModel` e `PraticaViewModel` observam os `Flow` do Repository e guardam o estado da tela num `MutableStateFlow` privado (`_uiState`), expondo só um `StateFlow` de leitura (`uiState`). As ações (`adicionarLinguagem()`, `removerQuestao(...)`, etc.) rodam o Repository dentro de `viewModelScope.launch { ... }`.
+- **ViewModelFactory:** `LinguagensViewModelFactory`, `QuestoesViewModelFactory` e `PraticaViewModelFactory` entregam os Repositories para o ViewModel. Cada tela recebe o seu com `viewModel(factory = ...)`, como valor padrão de um parâmetro.
 - **Telas:** só fazem `viewModel.uiState.collectAsStateWithLifecycle()` para desenhar e chamam os métodos do ViewModel quando o usuário clica. Não sobrou nenhum `dao`, `CoroutineScope` ou `Dispatchers.IO` dentro de um `@Composable`.
 - **Dados de exemplo:** antes eram inseridos por um `LaunchedEffect` no `AppNavigation`. Agora ficam no `AppDatabase`, num `Callback.onOpen` do Room, que chama o mesmo `inserirDadosIniciais(...)` (ele continua só inserindo se o banco estiver vazio).
 
@@ -62,9 +70,9 @@ Tela (@Composable)  ->  ViewModel  ->  Repository  ->  DAO  ->  Room
 | Pacote | O que tem |
 |---|---|
 | `ui` | `ui/screens` (as telas), `ui/navigation` (`AppNavigation` e `Rotas`) e `ui/theme` |
-| `data` | As `@Entity` (`Models.kt`, que antes ficava em `model/`), os dois `@Dao`, o `AppDatabase`, o `Conversores.kt` e o `DadosIniciais.kt` |
+| `data` | As `@Entity` (`Linguagem.kt` e `Questao.kt`, que antes ficavam em `model/`), o enum `Dificuldade`, os dois `@Dao`, o `AppDatabase`, o `Conversores.kt` e o `DadosIniciais.kt` |
 | `data.repository` | `LinguagemRepository` e `QuestaoRepository` |
-| `viewmodel` | `LinguagensViewModel` + `LinguagensUiState`, `QuestoesViewModel` + `QuestoesUiState` e as duas Factories |
+| `viewmodel` | `LinguagensViewModel` + `LinguagensUiState`, `QuestoesViewModel` + `QuestoesUiState`, `PraticaViewModel` + `PraticaUiState` e as três Factories |
 
 O `model/` sumiu porque as entidades do Room fazem parte da camada de dados. A navegação foi para dentro de `ui` porque também é parte da interface.
 
@@ -80,31 +88,53 @@ Antes, a tela conhecia o DAO, ou seja, sabia que os dados vinham do Room. Agora 
 |---|---|
 | `linguagens` | A lista que aparece na tela |
 | `questoes` | Para o diálogo de remover avisar quantas questões vão ser apagadas junto (CASCADE) |
-| `carregando` | Fica `true` até o banco mandar a primeira lista |
 | `novoNome` | O texto do campo "Nova linguagem" |
 | `linguagemEmEdicao` | Qual linguagem está aberta no diálogo de editar (`null` = diálogo fechado) |
+| `nomeEdicao`, `siglaEdicao`, `descricaoEdicao` | Os textos do diálogo de editar |
 | `linguagemParaRemover` | Qual linguagem está no diálogo de confirmar remoção (`null` = fechado) |
 
-**`QuestoesUiState`** (Questões, Detalhe da linguagem, Detalhe da questão e Pergunta):
+**`QuestoesUiState`** (Questões, Detalhe da linguagem e Detalhe da questão):
 
 | Campo | Por quê |
 |---|---|
-| `questoes` | A lista de questões. Os Detalhes e o quiz filtram dela pelo `id` |
+| `questoes` | A lista de questões. Os Detalhes filtram dela pelo `id` |
 | `linguagens` | Para mostrar a sigla e o nome da linguagem de cada questão e preencher o seletor do formulário |
 | `carregando` | Os Detalhes mostram "carregando..." até o banco responder |
+| `novaQuestao`, `edicao` | Os rascunhos (`FormularioQuestao`) dos formulários de criar e de editar |
+| `criandoQuestao` | Se o diálogo de criar questão do Detalhe da linguagem está aberto |
 | `questaoEmEdicao` | Qual questão está aberta no diálogo de editar (`null` = fechado) |
 
-Os campos que só existem enquanto um formulário ou diálogo está aberto (o rascunho do enunciado, da resposta e das alternativas, o progresso do quiz) continuaram como `remember` dentro do próprio componente, porque não são dados do app e somem quando o diálogo fecha.
+**`PraticaUiState`** (Pergunta):
+
+| Campo | Por quê |
+|---|---|
+| `linguagemId` | A linguagem do quiz (`-1` = todas) |
+| `linguagens`, `questoes` | Os dados do banco, usados para montar a seleção e as perguntas |
+| `desmarcadas` | Os ids das questões que o usuário tirou da prática |
+| `perguntas` | As perguntas do quiz (`null` = ainda na seleção) |
+| `indiceAtual`, `selecionada`, `respondida`, `acertos` | O progresso do quiz |
+
+O único `remember` de estado que sobrou nas telas é o que abre e fecha o menu do seletor, porque isso não é dado do app.
 
 Como os Detalhes agora filtram a lista que vem do `Flow`, eles atualizam sozinhos quando uma questão é marcada como resolvida ou criada, sem chamar `buscarPorId` de novo. Os métodos `buscarPorId` e `buscarPorLinguagem` continuam no DAO e no Repository.
 
 ### Alguma funcionalidade quebrou durante a reorganização?
 
-> **TODO (trio):** contar com as palavras de vocês o que quebrou e como encontraram e corrigiram.
+Sim, em alguns pontos durante a reorganização, e todos foram corrigidos antes da versão final:
+
+- **O projeto parou de compilar no meio do caminho.** O commit `220c455` apagou `model/Models.kt` e a pasta `navigation/`, mas o `MainActivity` já importava `ui.navigation.AppNavigation`, que ainda não existia. O compilador acusou o erro. O `c339c06` resolveu criando `Linguagem`, `Questao` e `Dificuldade` em `data/` e o `AppNavigation` e o `Rotas` em `ui/navigation/`.
+- **Os dados de exemplo pararam de compilar.** Quando o `buscarTodos()` passou a retornar `Flow`, o `DadosIniciais.kt` não podia mais chamar `.isNotEmpty()` nem `.associate { ... }` no resultado. Corrigimos pegando a lista atual com `.first()`.
+- **Os dados de exemplo perderam o lugar de onde eram inseridos.** Eles eram inseridos por um `LaunchedEffect` no `AppNavigation`, que deixou de conhecer o banco. Sem outro ponto de inserção, o app abriria vazio. Por isso a chamada foi para o `Callback.onOpen` do `AppDatabase`.
+
+**Como conferimos que nada ficou quebrado:** com o app instalado do zero no emulador, testamos adicionar, listar, editar e remover linguagens e questões, os Detalhes, a remoção em cascata, o quiz até o Resultado e fechar e abrir o app de novo. Tudo funcionou como no Trabalho 3, sem erros no Logcat.
 
 ### Dificuldades de cada integrante no Trabalho 4
 
-> **TODO (trio):** uma dificuldade de cada um (Gustavo, André, Brenno) e como resolveram.
+**André:** fiz a primeira parte da refatoração (`220c455`), trocando o `buscarTodos()` dos DAOs para `Flow`. A dificuldade foi que o código que usava a lista parou de compilar, como o `DadosIniciais.kt`, porque um `Flow` não é uma lista. Resolvi usando `.first()` para pegar a lista atual e movendo os dados de exemplo para o `Callback.onOpen` do `AppDatabase`.
+
+**Gustavo:** criei os Repositories, os ViewModels com `UiState` e as Factories (`c339c06`) e depois o ViewModel do quiz (`bf91bfc`). A dificuldade foi tirar o estado das telas sem mudar o comportamento, principalmente as validações, que dependiam das listas e dos campos do formulário. Resolvi deixando os erros como campos calculados dentro do `UiState`, como `erroNovoNome` e `erroNovaQuestao`. O quiz tinha estado próprio (perguntas, seleção, acertos), então ganhou um `PraticaViewModel` só para ele.
+
+**Brenno:** conferi o projeto contra o checklist do enunciado. A dificuldade foi que as telas já não chamavam o DAO para ler ou gravar, mas ainda pegavam o DAO para montar o Repository, com `AppDatabase.getDatabase(...).linguagemDao()` dentro do `viewModel(factory = ...)`. Resolvi criando um `criar(context)` em cada Repository, e agora a tela só escreve `LinguagemRepository.criar(LocalContext.current)`, sem citar o banco. Depois repeti todos os testes no emulador para garantir que nada tinha mudado.
 
 ## Trabalho 3 - Persistência com Room
 
@@ -225,8 +255,8 @@ O app tem 8 telas, todas navegáveis pelo `NavHost` em `AppNavigation.kt`:
 | Perfil | `perfil` | - | - |
 | Detalhe da linguagem | `detalhe_linguagem/{id}` | `QuestoesViewModel` | Mostra a linguagem e as questões dela pelo id; marca questões como resolvidas e cria questões |
 | Detalhe da questão | `detalhe_questao/{id}` | `QuestoesViewModel` | Mostra a questão e a linguagem dela pelo id; marca como resolvida |
-| Pergunta (quiz) | `pergunta/{linguagemId}` | `QuestoesViewModel` | Monta o quiz com as questões do banco e marca as acertadas como resolvidas |
-| Resultado | `resultado/{acertos}/{total}/{linguagens}` | Mostra acertos e XP da lição |
+| Pergunta (quiz) | `pergunta/{linguagemId}` | `PraticaViewModel` | Monta o quiz com as questões do banco e marca as acertadas como resolvidas |
+| Resultado | `resultado/{acertos}/{total}/{linguagens}` | - | Mostra acertos e XP da lição |
 
 A navegação principal (Trilha, Linguagens, Questões, Perfil) fica num `BottomNavigation`. Cada tela ganha a sua instância de ViewModel. Como todas observam o mesmo banco pelo `Flow`, uma mudança feita numa tela aparece nas outras.
 
@@ -239,15 +269,22 @@ app/src/main/java/com/example/duocode/
 │   ├── AppDatabase.kt
 │   ├── Conversores.kt
 │   ├── DadosIniciais.kt
+│   ├── Dificuldade.kt
+│   ├── Linguagem.kt
 │   ├── LinguagemDao.kt
-│   ├── Models.kt
+│   ├── Questao.kt
 │   ├── QuestaoDao.kt
 │   └── repository/
 │       ├── LinguagemRepository.kt
 │       └── QuestaoRepository.kt
 ├── viewmodel/
+│   ├── LinguagensUiState.kt
 │   ├── LinguagensViewModel.kt
 │   ├── LinguagensViewModelFactory.kt
+│   ├── PraticaUiState.kt
+│   ├── PraticaViewModel.kt
+│   ├── PraticaViewModelFactory.kt
+│   ├── QuestoesUiState.kt
 │   ├── QuestoesViewModel.kt
 │   └── QuestoesViewModelFactory.kt
 └── ui/
@@ -266,3 +303,9 @@ app/src/main/java/com/example/duocode/
 - Room 2.8.5 com KSP 2.3.12
 - Lifecycle ViewModel Compose e Runtime Compose (`viewModel(factory = ...)` e `collectAsStateWithLifecycle()`)
 - minSdk 24 · targetSdk/compileSdk 37
+
+## Documentação
+
+O processo e as decisões do trio, com prints do app rodando no emulador, estão em
+[`PROCESSO.md`](./PROCESSO.md). Os slides da apresentação estão em
+[`DuoCode_Documentacao_T4.pdf`](./DuoCode_Documentacao_T4.pdf), nesta mesma raiz do repositório.
