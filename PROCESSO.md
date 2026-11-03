@@ -4,7 +4,7 @@ Este documento conta como o DuoCode saiu do Trabalho 3 e chegou à arquitetura M
 
 **Trio:** André Caires · Gustavo Cáceres · Brenno Soares
 
-Os slides da apresentação estão em [`DuoCode_Documentacao_T4.pdf`](./DuoCode_Documentacao_T4.pdf).
+Os slides da apresentação estão em [`DuoCode_Documentacao_T4.pdf`](./DuoCode_Documentacao_T4.pdf). O vídeo está em [`docs/video-trabalho4.mov`](./docs/video-trabalho4.mov).
 
 **Sumário**
 
