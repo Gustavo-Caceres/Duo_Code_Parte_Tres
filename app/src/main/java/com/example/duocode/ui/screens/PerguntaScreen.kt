@@ -44,7 +44,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.duocode.data.AppDatabase
 import com.example.duocode.data.Questao
 import com.example.duocode.data.repository.LinguagemRepository
 import com.example.duocode.data.repository.QuestaoRepository
@@ -67,8 +66,8 @@ fun PerguntaScreen(
     linguagemId: Int,
     viewModel: PraticaViewModel = viewModel(
         factory = PraticaViewModelFactory(
-            LinguagemRepository(AppDatabase.getDatabase(LocalContext.current).linguagemDao()),
-            QuestaoRepository(AppDatabase.getDatabase(LocalContext.current).questaoDao()),
+            LinguagemRepository.criar(LocalContext.current),
+            QuestaoRepository.criar(LocalContext.current),
             linguagemId
         )
     )
