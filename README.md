@@ -31,80 +31,92 @@ Se o celular já tinha uma versão antiga do app instalada, o banco antigo é re
 
 ## Trabalho 4 - Arquitetura MVVM
 
-> **TODO (trio):** colocar aqui os prints e o vídeo do app funcionando depois da reorganização (adicionar, editar, remover, fechar e abrir de novo), e o link da apresentação, se tiver.
-
 ### Como estava o projeto no Trabalho 3, e o que mudou
 
-No Trabalho 3 a tela fazia tudo sozinha:
+No Trabalho 3 a tela fazia tudo sozinha. O `AppNavigation.kt` criava o banco, pegava os dois DAOs e guardava as listas `linguagens` e `questoes` em `mutableStateListOf`, e passava tudo isso para cada tela. Cada `@Composable` chamava o DAO direto dentro de um `CoroutineScope(Dispatchers.IO).launch { ... }` e, depois de inserir, editar ou remover, tinha que lembrar de chamar `recarregarListas(...)`. O estado de cada tela ficava espalhado em um monte de `remember` (`novoNome`, `linguagemEmEdicao`, `linguagemParaRemover`, `carregando`, os campos dos formulários, o andamento do quiz...).
 
-- O `AppNavigation.kt` criava o banco, pegava os dois DAOs e guardava as listas `linguagens` e `questoes` em `mutableStateListOf`. Depois passava tudo isso (listas e DAOs) para cada tela.
-- Cada `@Composable` chamava o DAO direto, dentro de `CoroutineScope(Dispatchers.IO).launch { ... }`.
-- Depois de inserir, editar ou remover, a tela tinha que lembrar de chamar `recarregarListas(...)` para buscar tudo de novo.
-- O estado de cada tela ficava espalhado em várias variáveis `remember` (`novoNome`, `linguagemEmEdicao`, `linguagemParaRemover`, `carregando`, `questaoDoBanco`...).
-
-No Trabalho 4 cada camada ficou com uma responsabilidade:
+Agora o caminho é sempre o mesmo:
 
 ```
 Tela (@Composable)  ->  ViewModel  ->  Repository  ->  DAO  ->  Room
        ^                    |
-       └──── uiState ───────┘   (StateFlow que a tela observa)
+       +---- uiState -------+
 ```
 
-- **DAO reativo:** o `buscarTodos()` dos dois DAOs agora retorna `Flow<List<...>>` (e deixou de ser `suspend`). O Room emite a lista de novo sozinho sempre que a tabela muda, então o `recarregarListas(...)` foi apagado.
-- **Repository:** `LinguagemRepository` e `QuestaoRepository` recebem o DAO no construtor e só repassam as chamadas para ele.
-- **ViewModel + UiState:** `LinguagensViewModel` e `QuestoesViewModel` observam os `Flow` do Repository e guardam o estado da tela num `MutableStateFlow` privado (`_uiState`), expondo só um `StateFlow` de leitura (`uiState`). As ações (`adicionarLinguagem()`, `removerQuestao(...)`, etc.) rodam o Repository dentro de `viewModelScope.launch { ... }`.
-- **ViewModelFactory:** `LinguagensViewModelFactory` e `QuestoesViewModelFactory` entregam os Repositories para o ViewModel. No `AppNavigation.kt` cada tela recebe o seu com `viewModel(factory = ...)`.
-- **Telas:** só fazem `viewModel.uiState.collectAsStateWithLifecycle()` para desenhar e chamam os métodos do ViewModel quando o usuário clica. Não sobrou nenhum `dao`, `CoroutineScope` ou `Dispatchers.IO` dentro de um `@Composable`.
-- **Dados de exemplo:** antes eram inseridos por um `LaunchedEffect` no `AppNavigation`. Agora ficam no `AppDatabase`, num `Callback.onOpen` do Room, que chama o mesmo `inserirDadosIniciais(...)` (ele continua só inserindo se o banco estiver vazio).
+O que mudou na prática:
+
+- O `buscarTodos()` dos dois DAOs agora retorna `Flow<List<...>>` e não é mais `suspend`. O Room manda a lista de novo sozinho quando a tabela muda, então o `recarregarListas(...)` foi apagado.
+- Criamos um Repository para cada Entity (`LinguagemRepository` e `QuestaoRepository`). Eles recebem o DAO no construtor e só repassam as chamadas.
+- Criamos três ViewModels: `LinguagensViewModel`, `QuestoesViewModel` e `PraticaViewModel` (o do quiz). Cada um tem o seu `UiState`, o `_uiState` privado e o `uiState` público só de leitura, e chama o Repository dentro de `viewModelScope.launch`.
+- Cada ViewModel tem a sua Factory, e a tela pega o ViewModel com `viewModel(factory = ...)`.- As telas só fazem `collectAsStateWithLifecycle()` e chamam os métodos do ViewModel. As validações dos formulários (nome repetido, enunciado curto, alternativa igual à resposta...) saíram das telas e foram para os UiState.
+- Os dados de exemplo eram inseridos por um `LaunchedEffect` no `AppNavigation`. Passamos isso para um `Callback.onOpen` no `AppDatabase`, que chama o mesmo `inserirDadosIniciais(...)`, que continua só inserindo quando o banco está vazio.
 
 ### Como dividimos os pacotes
 
 | Pacote | O que tem |
 |---|---|
 | `ui` | `ui/screens` (as telas), `ui/navigation` (`AppNavigation` e `Rotas`) e `ui/theme` |
-| `data` | As `@Entity` (`Models.kt`, que antes ficava em `model/`), os dois `@Dao`, o `AppDatabase`, o `Conversores.kt` e o `DadosIniciais.kt` |
+| `data` | As Entities (`Linguagem.kt`, `Questao.kt` e `Dificuldade.kt`), os dois DAOs, o `AppDatabase`, o `Conversores.kt` e o `DadosIniciais.kt` |
 | `data.repository` | `LinguagemRepository` e `QuestaoRepository` |
-| `viewmodel` | `LinguagensViewModel` + `LinguagensUiState`, `QuestoesViewModel` + `QuestoesUiState` e as duas Factories |
+| `viewmodel` | Os três ViewModels, os três UiState e as três Factories |
 
-O `model/` sumiu porque as entidades do Room fazem parte da camada de dados. A navegação foi para dentro de `ui` porque também é parte da interface.
+O antigo `model/Models.kt` tinha as duas entidades e o enum juntos. Como elas são do Room, mandamos para `data` e separamos uma por arquivo. A navegação foi para dentro de `ui` porque também é parte da interface.
 
 ### Por que o Repository existe
 
-Antes, a tela conhecia o DAO, ou seja, sabia que os dados vinham do Room. Agora só o Repository fala com o DAO e só o ViewModel fala com o Repository. Se um dia as questões vierem de uma API, por exemplo, só o Repository muda, e o ViewModel e as telas continuam iguais.
+Antes a tela conhecia o DAO, ou seja, sabia que os dados vinham do Room. Agora só o Repository fala com o DAO e só o ViewModel fala com o Repository. Se um dia as questões vierem de uma API, por exemplo, a gente mexe só no Repository e o resto do app continua igual. Também ficou mais fácil de achar as coisas: tudo que mexe com dados passa por dois arquivos só.
 
 ### O que tem dentro de cada UiState
 
-**`LinguagensUiState`** (tela de Linguagens):
+**`LinguagensUiState`** (tela de Linguagens)
 
 | Campo | Por quê |
 |---|---|
 | `linguagens` | A lista que aparece na tela |
-| `questoes` | Para o diálogo de remover avisar quantas questões vão ser apagadas junto (CASCADE) |
-| `carregando` | Fica `true` até o banco mandar a primeira lista |
+| `questoes` | Para o aviso de remover dizer quantas questões vão junto (CASCADE) |
 | `novoNome` | O texto do campo "Nova linguagem" |
-| `linguagemEmEdicao` | Qual linguagem está aberta no diálogo de editar (`null` = diálogo fechado) |
-| `linguagemParaRemover` | Qual linguagem está no diálogo de confirmar remoção (`null` = fechado) |
+| `linguagemEmEdicao` | Qual linguagem está aberta no diálogo de editar (`null` quando está fechado) |
+| `nomeEdicao`, `siglaEdicao`, `descricaoEdicao` | Os campos do diálogo de editar |
+| `linguagemParaRemover` | Qual linguagem está no diálogo de confirmar a remoção |
 
-**`QuestoesUiState`** (Questões, Detalhe da linguagem, Detalhe da questão e Pergunta):
+Ele também calcula `erroNovoNome` e `erroEdicao` (as mensagens de validação) e `questoesDaLinguagemParaRemover`, para a tela só mostrar o resultado.
+
+**`QuestoesUiState`** (Questões, Detalhe da linguagem e Detalhe da questão)
 
 | Campo | Por quê |
 |---|---|
-| `questoes` | A lista de questões. Os Detalhes e o quiz filtram dela pelo `id` |
-| `linguagens` | Para mostrar a sigla e o nome da linguagem de cada questão e preencher o seletor do formulário |
+| `questoes` e `linguagens` | As listas. Os Detalhes procuram o item pelo `id` dentro delas |
 | `carregando` | Os Detalhes mostram "carregando..." até o banco responder |
-| `questaoEmEdicao` | Qual questão está aberta no diálogo de editar (`null` = fechado) |
+| `novaQuestao` | O formulário de nova questão (`FormularioQuestao`: enunciado, resposta, alternativas erradas, linguagem e dificuldade) |
+| `criandoQuestao` | Se o diálogo de criar questão do Detalhe da linguagem está aberto |
+| `questaoEmEdicao` e `edicao` | Qual questão está sendo editada e o formulário dela |
 
-Os campos que só existem enquanto um formulário ou diálogo está aberto (o rascunho do enunciado, da resposta e das alternativas, o progresso do quiz) continuaram como `remember` dentro do próprio componente, porque não são dados do app e somem quando o diálogo fecha.
+Como o formulário de nova questão e o de edição têm os mesmos campos, criamos a `FormularioQuestao` e usamos nos dois.
 
-Como os Detalhes agora filtram a lista que vem do `Flow`, eles atualizam sozinhos quando uma questão é marcada como resolvida ou criada, sem chamar `buscarPorId` de novo. Os métodos `buscarPorId` e `buscarPorLinguagem` continuam no DAO e no Repository.
+**`PraticaUiState`** (Pergunta / quiz)
+
+| Campo | Por quê |
+|---|---|
+| `linguagemId`, `linguagens`, `questoes` | Para saber quais questões entram na prática |
+| `desmarcadas` | As questões que o usuário tirou da lista antes de começar |
+| `perguntas` | O quiz montado (`null` enquanto ainda está escolhendo as questões) |
+| `indiceAtual`, `selecionada`, `respondida`, `acertos` | O andamento do quiz |
+
+O único `remember` que sobrou nas telas é o `expandido` do menu de seleção (o dropdown de linguagem e dificuldade), que é só visual.
 
 ### Alguma funcionalidade quebrou durante a reorganização?
 
-> **TODO (trio):** contar com as palavras de vocês o que quebrou e como encontraram e corrigiram.
+Sim. Quando subimos a primeira parte da refatoração (o commit `refatora projeto para arquitetura MVVM...`), o app parou de compilar na `main`. As telas já importavam os ViewModels, mas os arquivos novos (Repositories, ViewModels, Factories e a pasta `ui/navigation`) não tinham ido no commit, só os arquivos que já existiam e foram modificados. No Android Studio os arquivos novos estavam em vermelho, que é como ele mostra arquivo que ainda não foi adicionado no Git, e a gente não reparou na hora. Descobrimos quando outro integrante puxou a `main` e deu erro de referência não encontrada. Corrigimos no pull request seguinte (`completa-mvvm`), que subiu os arquivos que faltavam. Desde então a gente olha o `git status` antes de commitar.
+
+Outra coisa que mudou de comportamento foram as telas de Detalhe. No Trabalho 3 elas buscavam a linguagem e a questão com `buscarPorId` e, depois de marcar uma questão como resolvida, tinham que buscar de novo. Agora elas procuram o item pelo `id` dentro da lista que vem do `Flow`, então quando a questão muda a tela já atualiza sozinha. Testamos marcando e desmarcando questão no Detalhe e voltando para a lista para ver se estava igual.
 
 ### Dificuldades de cada integrante no Trabalho 4
 
-> **TODO (trio):** uma dificuldade de cada um (Gustavo, André, Brenno) e como resolveram.
+**André:** fiz a primeira parte da refatoração: o `Flow` nos DAOs, a saída do `recarregarListas` e a troca das telas para usar ViewModel. A dificuldade foi que, sem o `LaunchedEffect` no `AppNavigation`, eu não sabia onde colocar o seed das questões, porque ele precisa rodar quando o app abre, independente da tela. Coloquei no `Callback.onOpen` do Room, dentro do `AppDatabase`. Também fui eu que esqueci de adicionar os arquivos novos no commit, como contamos acima.
+
+**Gustavo:** completei a arquitetura: os Repositories, os UiState, as Factories e o `PraticaViewModel` do quiz. A parte mais chata foi tirar as validações e os formulários das telas. Os campos estavam todos em `remember` dentro dos diálogos, e para passar para o UiState tive que criar a `FormularioQuestao` e um método no ViewModel para cada campo que muda. O quiz também deu trabalho, porque o andamento (questão atual, alternativa marcada, acertos) estava todo dentro da `PerguntaScreen`.
+
+**Brenno:** cuidei das telas de Detalhe, que eu já tinha feito no Trabalho 3. A dúvida foi se elas continuavam usando o `buscarPorId` ou se pegavam o item da lista do ViewModel. Ficamos com a lista, porque assim o Detalhe atualiza sozinho quando a questão muda, e o "carregando" e o "não encontrada" continuaram funcionando com o campo `carregando` do UiState.
 
 ## Trabalho 3 - Persistência com Room
 
@@ -225,8 +237,8 @@ O app tem 8 telas, todas navegáveis pelo `NavHost` em `AppNavigation.kt`:
 | Perfil | `perfil` | - | - |
 | Detalhe da linguagem | `detalhe_linguagem/{id}` | `QuestoesViewModel` | Mostra a linguagem e as questões dela pelo id; marca questões como resolvidas e cria questões |
 | Detalhe da questão | `detalhe_questao/{id}` | `QuestoesViewModel` | Mostra a questão e a linguagem dela pelo id; marca como resolvida |
-| Pergunta (quiz) | `pergunta/{linguagemId}` | `QuestoesViewModel` | Monta o quiz com as questões do banco e marca as acertadas como resolvidas |
-| Resultado | `resultado/{acertos}/{total}/{linguagens}` | Mostra acertos e XP da lição |
+| Pergunta (quiz) | `pergunta/{linguagemId}` | `PraticaViewModel` | Monta o quiz com as questões do banco e marca as acertadas como resolvidas |
+| Resultado | `resultado/{acertos}/{total}/{linguagens}` | - | Mostra acertos e XP da lição |
 
 A navegação principal (Trilha, Linguagens, Questões, Perfil) fica num `BottomNavigation`. Cada tela ganha a sua instância de ViewModel. Como todas observam o mesmo banco pelo `Flow`, uma mudança feita numa tela aparece nas outras.
 
@@ -239,15 +251,22 @@ app/src/main/java/com/example/duocode/
 │   ├── AppDatabase.kt
 │   ├── Conversores.kt
 │   ├── DadosIniciais.kt
+│   ├── Dificuldade.kt
+│   ├── Linguagem.kt
 │   ├── LinguagemDao.kt
-│   ├── Models.kt
+│   ├── Questao.kt
 │   ├── QuestaoDao.kt
 │   └── repository/
 │       ├── LinguagemRepository.kt
 │       └── QuestaoRepository.kt
 ├── viewmodel/
+│   ├── LinguagensUiState.kt
 │   ├── LinguagensViewModel.kt
 │   ├── LinguagensViewModelFactory.kt
+│   ├── PraticaUiState.kt
+│   ├── PraticaViewModel.kt
+│   ├── PraticaViewModelFactory.kt
+│   ├── QuestoesUiState.kt
 │   ├── QuestoesViewModel.kt
 │   └── QuestoesViewModelFactory.kt
 └── ui/
