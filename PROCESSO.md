@@ -4,7 +4,7 @@ Este documento conta como o DuoCode saiu do Trabalho 3 e chegou à arquitetura M
 
 **Trio:** André Caires · Gustavo Cáceres · Brenno Soares
 
-Os slides da apresentação estão em [`DuoCode_Documentacao_T4.pdf`](./DuoCode_Documentacao_T4.pdf). O vídeo está em [`docs/video-trabalho4.mov`](./docs/video-trabalho4.mov).
+Os slides da apresentação estão em [`DuoCode_Documentacao_T4.pdf`](./DuoCode_Documentacao_T4.pdf). O vídeo está em [`docs/video-trabalho4.mp4`](./docs/video-trabalho4.mp4).
 
 **Sumário**
 
@@ -251,3 +251,9 @@ Sim, em alguns pontos durante a reorganização, e todos foram corrigidos antes 
 | 03/11 · 11:44 | Gustavo Cáceres | `6b77a28` | Merge do pull request #6 | — |
 | 03/11 · 15:46 | Gustavo Cáceres | `bf91bfc` | Cria o ViewModel do quiz com `UiState` e Factory | +236 −116 |
 | 03/11 · 15:47 | Gustavo Cáceres | `ee80fe9` | Merge do pull request #7 | — |
+| 03/11 · 16:56 | André Caires | `b5174b1` | Atualiza o README com a reorganização em MVVM | +55 −36 |
+| 03/11 · 18:09 | Brenno Soares | `35ef28d` | Move a criação dos Repositories para fora das telas, com `criar(context)` | +24 −15 |
+| 03/11 · 18:10 | Brenno Soares | `be3f79b` | Documenta o Trabalho 4: README, `PROCESSO.md`, prints e slides | +311 −15 |
+| 03/11 · 18:18 | Brenno Soares | `7139614` | Merge da `main` na branch `documentacao-t4` | — |
+| 03/11 · 18:19 | Brenno Soares | `69618f7` | Merge do pull request #8 | — |
+| 03/11 · 19:04 | Brenno Soares | `a657fdb` | Adiciona o vídeo do Trabalho 4 | +3 −1 |

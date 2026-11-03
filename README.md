@@ -41,7 +41,7 @@ Os slides estão em [`DuoCode_Documentacao_T4.pdf`](./DuoCode_Documentacao_T4.pd
 |---|---|---|---|
 | <img src="docs/prints/11-detalhe-linguagem-resolvida.png" width="200"> | <img src="docs/prints/19-resposta-errada.png" width="200"> | <img src="docs/prints/21-resultado.png" width="200"> | <img src="docs/prints/13-questoes.png" width="200"> |
 
-Vídeo: [`docs/video-trabalho4.mov`](docs/video-trabalho4.mov)
+Vídeo: [`docs/video-trabalho4.mp4`](docs/video-trabalho4.mp4)
 
 ### Como estava o projeto no Trabalho 3, e o que mudou
 
