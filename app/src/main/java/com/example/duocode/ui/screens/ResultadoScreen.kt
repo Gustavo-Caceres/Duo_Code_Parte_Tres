@@ -29,7 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.duocode.navigation.Rotas
+import com.example.duocode.ui.navigation.Rotas
 import com.example.duocode.ui.theme.DuoAmber
 import com.example.duocode.ui.theme.DuoBg
 import com.example.duocode.ui.theme.DuoBlue

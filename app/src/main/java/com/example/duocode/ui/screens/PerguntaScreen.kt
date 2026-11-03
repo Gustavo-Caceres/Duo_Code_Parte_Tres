@@ -1,7 +1,6 @@
 package com.example.duocode.ui.screens
 
 import android.net.Uri
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,7 +38,6 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
@@ -47,13 +45,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.example.duocode.data.LinguagemDao
-import com.example.duocode.data.QuestaoDao
-import com.example.duocode.data.recarregarListas
-import com.example.duocode.model.Linguagem
-import com.example.duocode.model.Questao
-import com.example.duocode.navigation.Rotas
+import com.example.duocode.data.Linguagem
+import com.example.duocode.data.Questao
+import com.example.duocode.ui.navigation.Rotas
 import com.example.duocode.ui.theme.DuoBg
 import com.example.duocode.ui.theme.DuoBlue
 import com.example.duocode.ui.theme.DuoCard
@@ -62,9 +58,7 @@ import com.example.duocode.ui.theme.DuoGreen
 import com.example.duocode.ui.theme.DuoOrange
 import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.example.duocode.viewmodel.QuestoesViewModel
 
 private data class Pergunta(
     val questao: Questao,
@@ -102,11 +96,11 @@ private fun nomesDasLinguagens(perguntas: List<Pergunta>, linguagens: List<Lingu
 fun PerguntaScreen(
     navController: NavController,
     linguagemId: Int,
-    linguagens: SnapshotStateList<Linguagem>,
-    questoes: SnapshotStateList<Questao>,
-    linguagemDao: LinguagemDao,
-    questaoDao: QuestaoDao
+    viewModel: QuestoesViewModel
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val linguagens = uiState.linguagens
+    val questoes = uiState.questoes
     var perguntas by remember { mutableStateOf<List<Pergunta>?>(null) }
     val perguntasAtuais = perguntas
 
@@ -124,18 +118,7 @@ fun PerguntaScreen(
             navController = navController,
             perguntas = perguntasAtuais,
             linguagens = linguagens,
-            onAcertar = { questao ->
-                if (!questao.resolvida) {
-                    CoroutineScope(Dispatchers.IO).launch {
-                        try {
-                            questaoDao.atualizar(questao.copy(resolvida = true))
-                            recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
-                        } catch (e: Exception) {
-                            Log.e("PerguntaScreen", "Erro ao marcar a questão como resolvida", e)
-                        }
-                    }
-                }
-            }
+            onAcertar = { questao -> viewModel.marcarComoResolvida(questao) }
         )
     }
 }

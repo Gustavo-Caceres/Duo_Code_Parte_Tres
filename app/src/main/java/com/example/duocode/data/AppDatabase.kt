@@ -1,12 +1,15 @@
 package com.example.duocode.data
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import com.example.duocode.model.Linguagem
-import com.example.duocode.model.Questao
+import androidx.sqlite.db.SupportSQLiteDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Database(entities = [Linguagem::class, Questao::class], version = 2)
 @TypeConverters(Conversores::class)
@@ -26,6 +29,19 @@ abstract class AppDatabase : RoomDatabase() {
                     "duocode_database"
                 )
                     .fallbackToDestructiveMigration(true)
+                    .addCallback(object : Callback() {
+                        // roda sempre que o banco abre; inserirDadosIniciais só insere se estiver vazio
+                        override fun onOpen(db: SupportSQLiteDatabase) {
+                            CoroutineScope(Dispatchers.IO).launch {
+                                try {
+                                    val banco = getDatabase(context)
+                                    inserirDadosIniciais(banco.linguagemDao(), banco.questaoDao())
+                                } catch (e: Exception) {
+                                    Log.e("AppDatabase", "Erro ao inserir os dados iniciais", e)
+                                }
+                            }
+                        }
+                    })
                     .build()
                 INSTANCE = instance
                 instance

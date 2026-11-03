@@ -1,14 +1,9 @@
 package com.example.duocode.data
 
-import androidx.compose.runtime.snapshots.SnapshotStateList
-import com.example.duocode.model.Dificuldade
-import com.example.duocode.model.Linguagem
-import com.example.duocode.model.Questao
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 
 suspend fun inserirDadosIniciais(linguagemDao: LinguagemDao, questaoDao: QuestaoDao) {
-    if (linguagemDao.buscarTodos().isNotEmpty()) return
+    if (linguagemDao.buscarTodos().first().isNotEmpty()) return
 
     listOf(
         Linguagem(nome = "JavaScript", sigla = "JS", descricao = "Web, front-end e Node"),
@@ -17,7 +12,7 @@ suspend fun inserirDadosIniciais(linguagemDao: LinguagemDao, questaoDao: Questao
         Linguagem(nome = "SQL", sigla = "SQL", descricao = "Consultas e bancos relacionais")
     ).forEach { linguagemDao.inserir(it) }
 
-    val ids = linguagemDao.buscarTodos().associate { it.sigla to it.id }
+    val ids = linguagemDao.buscarTodos().first().associate { it.sigla to it.id }
 
     fun questao(sigla: String, dificuldade: Dificuldade, enunciado: String, resposta: String, vararg erradas: String) =
         Questao(
@@ -73,20 +68,4 @@ suspend fun inserirDadosIniciais(linguagemDao: LinguagemDao, questaoDao: Questao
         questao("SQL", Dificuldade.DIFICIL, "Qual cláusula filtra grupos depois de um GROUP BY?", "HAVING", "WHERE", "ORDER BY", "LIMIT"),
         questao("SQL", Dificuldade.DIFICIL, "O que uma chave estrangeira garante?", "Que o valor exista na tabela referenciada", "Que o valor seja único", "Que a coluna não seja nula", "Que a tabela tenha um índice")
     ).forEach { questaoDao.inserir(it) }
-}
-
-suspend fun recarregarListas(
-    linguagemDao: LinguagemDao,
-    questaoDao: QuestaoDao,
-    linguagens: SnapshotStateList<Linguagem>,
-    questoes: SnapshotStateList<Questao>
-) {
-    val todasLinguagens = linguagemDao.buscarTodos()
-    val todasQuestoes = questaoDao.buscarTodos()
-    withContext(Dispatchers.Main) {
-        linguagens.clear()
-        linguagens.addAll(todasLinguagens)
-        questoes.clear()
-        questoes.addAll(todasQuestoes)
-    }
 }

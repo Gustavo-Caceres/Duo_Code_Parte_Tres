@@ -1,6 +1,5 @@
 package com.example.duocode.ui.screens
 
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,26 +29,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.example.duocode.data.LinguagemDao
-import com.example.duocode.data.QuestaoDao
-import com.example.duocode.data.recarregarListas
-import com.example.duocode.model.Dificuldade
-import com.example.duocode.model.Linguagem
-import com.example.duocode.model.Questao
+import com.example.duocode.data.Dificuldade
+import com.example.duocode.data.Linguagem
+import com.example.duocode.data.Questao
 import com.example.duocode.ui.theme.DuoAmber
 import com.example.duocode.ui.theme.DuoBg
 import com.example.duocode.ui.theme.DuoBlue
@@ -60,10 +54,7 @@ import com.example.duocode.ui.theme.DuoOrange
 import com.example.duocode.ui.theme.DuoPurple
 import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.example.duocode.viewmodel.QuestoesViewModel
 
 private fun corDaSiglaDetalhe(sigla: String) = when (sigla) {
     "JS" -> DuoAmber
@@ -84,40 +75,11 @@ private fun corDaDificuldadeDetalhe(dificuldade: Dificuldade) = when (dificuldad
 fun DetalheQuestaoScreen(
     navController: NavController,
     id: Int,
-    linguagens: SnapshotStateList<Linguagem>,
-    questoes: SnapshotStateList<Questao>,
-    linguagemDao: LinguagemDao,
-    questaoDao: QuestaoDao
+    viewModel: QuestoesViewModel
 ) {
-    var carregando by remember { mutableStateOf(true) }
-    var questaoDoBanco by remember { mutableStateOf<Questao?>(null) }
-    var linguagemDoBanco by remember { mutableStateOf<Linguagem?>(null) }
-    var totalDaLinguagem by remember { mutableIntStateOf(0) }
-
-    suspend fun buscarDoBanco() {
-        val encontrada = questaoDao.buscarPorId(id)
-        val daQuestao = encontrada?.let { linguagemDao.buscarPorId(it.linguagemId) }
-        val total = encontrada?.let { questaoDao.buscarPorLinguagem(it.linguagemId).size } ?: 0
-        withContext(Dispatchers.Main) {
-            questaoDoBanco = encontrada
-            linguagemDoBanco = daQuestao
-            totalDaLinguagem = total
-            carregando = false
-        }
-    }
-
-    LaunchedEffect(id) {
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                buscarDoBanco()
-            } catch (e: Exception) {
-                Log.e("DetalheQuestaoScreen", "Erro ao buscar a questão no banco", e)
-                withContext(Dispatchers.Main) { carregando = false }
-            }
-        }
-    }
-
-    val questao = questaoDoBanco
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val carregando = uiState.carregando
+    val questao = uiState.questoes.find { it.id == id }
 
     Scaffold(
         containerColor = DuoBg,
@@ -156,18 +118,9 @@ fun DetalheQuestaoScreen(
             return@Scaffold
         }
 
-        val linguagem = linguagemDoBanco
-        val alternarResolvida: () -> Unit = {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    questaoDao.atualizar(questao.copy(resolvida = !questao.resolvida))
-                    recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
-                    buscarDoBanco()
-                } catch (e: Exception) {
-                    Log.e("DetalheQuestaoScreen", "Erro ao atualizar a questão", e)
-                }
-            }
-        }
+        val linguagem = uiState.linguagens.find { it.id == questao.linguagemId }
+        val totalDaLinguagem = uiState.questoes.count { it.linguagemId == questao.linguagemId }
+        val alternarResolvida: () -> Unit = { viewModel.alternarResolvida(questao) }
 
         Column(
             modifier = Modifier

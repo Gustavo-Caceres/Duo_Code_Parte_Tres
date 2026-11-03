@@ -5,7 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
-import com.example.duocode.model.Linguagem
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface LinguagemDao {
@@ -13,7 +13,7 @@ interface LinguagemDao {
     suspend fun inserir(linguagem: Linguagem)
 
     @Query("SELECT * FROM linguagens")
-    suspend fun buscarTodos(): List<Linguagem>
+    fun buscarTodos(): Flow<List<Linguagem>>
 
     @Query("SELECT * FROM linguagens WHERE id = :id")
     suspend fun buscarPorId(id: Int): Linguagem?

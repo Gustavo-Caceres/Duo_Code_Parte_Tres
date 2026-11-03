@@ -1,6 +1,5 @@
 package com.example.duocode.ui.screens
 
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -38,12 +37,10 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -51,13 +48,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.example.duocode.data.LinguagemDao
-import com.example.duocode.data.QuestaoDao
-import com.example.duocode.data.recarregarListas
-import com.example.duocode.model.Dificuldade
-import com.example.duocode.model.Linguagem
-import com.example.duocode.model.Questao
+import com.example.duocode.data.Dificuldade
+import com.example.duocode.data.Linguagem
+import com.example.duocode.data.Questao
 import com.example.duocode.ui.theme.DuoAmber
 import com.example.duocode.ui.theme.DuoBg
 import com.example.duocode.ui.theme.DuoBlue
@@ -68,9 +63,7 @@ import com.example.duocode.ui.theme.DuoOrange
 import com.example.duocode.ui.theme.DuoPurple
 import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.example.duocode.viewmodel.QuestoesViewModel
 
 private fun corDaSiglaQuestao(sigla: String): Color = when (sigla) {
     "JS" -> DuoAmber
@@ -89,40 +82,19 @@ private fun corDaDificuldadeQuestao(dificuldade: Dificuldade): Color = when (dif
 @Composable
 fun QuestoesScreen(
     navController: NavController,
-    linguagens: SnapshotStateList<Linguagem>,
-    questoes: SnapshotStateList<Questao>,
-    linguagemDao: LinguagemDao,
-    questaoDao: QuestaoDao
+    viewModel: QuestoesViewModel
 ) {
-    LaunchedEffect(Unit) {
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
-            } catch (e: Exception) {
-                Log.e("QuestoesScreen", "Erro ao buscar as questões", e)
-            }
-        }
-    }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val linguagens = uiState.linguagens
+    val questoes = uiState.questoes
 
-    var questaoEmEdicao by remember { mutableStateOf<Questao?>(null) }
-
-    questaoEmEdicao?.let { questao ->
+    uiState.questaoEmEdicao?.let { questao ->
         EditarQuestaoDialogo(
             questao = questao,
             linguagens = linguagens,
             questoes = questoes,
-            onCancelar = { questaoEmEdicao = null },
-            onSalvar = { atualizada ->
-                CoroutineScope(Dispatchers.IO).launch {
-                    try {
-                        questaoDao.atualizar(atualizada)
-                        recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
-                    } catch (e: Exception) {
-                        Log.e("QuestoesScreen", "Erro ao atualizar a questão", e)
-                    }
-                }
-                questaoEmEdicao = null
-            }
+            onCancelar = { viewModel.editarQuestao(null) },
+            onSalvar = { atualizada -> viewModel.atualizarQuestao(atualizada) }
         )
     }
 
@@ -160,22 +132,15 @@ fun QuestoesScreen(
                 linguagens = linguagens,
                 questoes = questoes,
                 onAdicionar = { enunciado, resposta, linguagemId, dificuldade, alternativasErradas ->
-                    CoroutineScope(Dispatchers.IO).launch {
-                        try {
-                            questaoDao.inserir(
-                                Questao(
-                                    enunciado = enunciado,
-                                    resposta = resposta,
-                                    linguagemId = linguagemId,
-                                    dificuldade = dificuldade,
-                                    alternativasErradas = alternativasErradas
-                                )
-                            )
-                            recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
-                        } catch (e: Exception) {
-                            Log.e("QuestoesScreen", "Erro ao inserir a questão", e)
-                        }
-                    }
+                    viewModel.adicionarQuestao(
+                        Questao(
+                            enunciado = enunciado,
+                            resposta = resposta,
+                            linguagemId = linguagemId,
+                            dificuldade = dificuldade,
+                            alternativasErradas = alternativasErradas
+                        )
+                    )
                 }
             )
         }
@@ -194,17 +159,8 @@ fun QuestoesScreen(
                 questao = questao,
                 linguagem = linguagens.find { it.id == questao.linguagemId },
                 onAbrir = { navController.navigate("detalhe_questao/${questao.id}") },
-                onEditar = { questaoEmEdicao = questao },
-                onRemover = {
-                    CoroutineScope(Dispatchers.IO).launch {
-                        try {
-                            questaoDao.deletar(questao)
-                            recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
-                        } catch (e: Exception) {
-                            Log.e("QuestoesScreen", "Erro ao remover a questão", e)
-                        }
-                    }
-                }
+                onEditar = { viewModel.editarQuestao(questao) },
+                onRemover = { viewModel.removerQuestao(questao) }
             )
         }
         item { Spacer(modifier = Modifier.height(4.dp)) }

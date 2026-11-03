@@ -1,6 +1,5 @@
 package com.example.duocode.ui.screens
 
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -48,13 +47,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,15 +60,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import com.example.duocode.data.LinguagemDao
-import com.example.duocode.data.QuestaoDao
-import com.example.duocode.data.recarregarListas
-import com.example.duocode.model.Dificuldade
-import com.example.duocode.model.Linguagem
-import com.example.duocode.model.Questao
-import com.example.duocode.navigation.Rotas
+import com.example.duocode.data.Dificuldade
+import com.example.duocode.data.Linguagem
+import com.example.duocode.data.Questao
+import com.example.duocode.ui.navigation.Rotas
 import com.example.duocode.ui.theme.DuoAmber
 import com.example.duocode.ui.theme.DuoBg
 import com.example.duocode.ui.theme.DuoBlue
@@ -83,10 +77,7 @@ import com.example.duocode.ui.theme.DuoOrange
 import com.example.duocode.ui.theme.DuoPurple
 import com.example.duocode.ui.theme.DuoText
 import com.example.duocode.ui.theme.DuoTextSecondary
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.example.duocode.viewmodel.QuestoesViewModel
 
 private fun corDaLinguagem(sigla: String): Color = when (sigla) {
     "JS" -> DuoAmber
@@ -120,39 +111,14 @@ fun CarregandoDetalhe(modifier: Modifier = Modifier) {
 fun DetalheLinguagemScreen(
     navController: NavController,
     linguagemId: Int,
-    linguagens: SnapshotStateList<Linguagem>,
-    questoes: SnapshotStateList<Questao>,
-    linguagemDao: LinguagemDao,
-    questaoDao: QuestaoDao
+    viewModel: QuestoesViewModel
 ) {
-    var carregando by remember { mutableStateOf(true) }
-    var linguagemDoBanco by remember { mutableStateOf<Linguagem?>(null) }
-    val questoesDaLinguagem = remember { mutableStateListOf<Questao>() }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val questoes = uiState.questoes
+    val carregando = uiState.carregando
+    val linguagem = uiState.linguagens.find { it.id == linguagemId }
+    val questoesDaLinguagem = questoes.filter { it.linguagemId == linguagemId }
     var mostrarDialogo by remember { mutableStateOf(false) }
-
-    suspend fun buscarDoBanco() {
-        val encontrada = linguagemDao.buscarPorId(linguagemId)
-        val daLinguagem = questaoDao.buscarPorLinguagem(linguagemId)
-        withContext(Dispatchers.Main) {
-            linguagemDoBanco = encontrada
-            questoesDaLinguagem.clear()
-            questoesDaLinguagem.addAll(daLinguagem)
-            carregando = false
-        }
-    }
-
-    LaunchedEffect(linguagemId) {
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                buscarDoBanco()
-            } catch (e: Exception) {
-                Log.e("DetalheLinguagemScreen", "Erro ao buscar a linguagem no banco", e)
-                withContext(Dispatchers.Main) { carregando = false }
-            }
-        }
-    }
-
-    val linguagem = linguagemDoBanco
 
     Scaffold(
         containerColor = DuoBg,
@@ -250,17 +216,7 @@ fun DetalheLinguagemScreen(
                 items(questoesDaLinguagem, key = { it.id }) { questao ->
                     QuestaoItem(
                         questao = questao,
-                        onAlternarResolvida = {
-                            CoroutineScope(Dispatchers.IO).launch {
-                                try {
-                                    questaoDao.atualizar(questao.copy(resolvida = !questao.resolvida))
-                                    recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
-                                    buscarDoBanco()
-                                } catch (e: Exception) {
-                                    Log.e("DetalheLinguagemScreen", "Erro ao atualizar a questão", e)
-                                }
-                            }
-                        }
+                        onAlternarResolvida = { viewModel.alternarResolvida(questao) }
                     )
                 }
             }
@@ -303,23 +259,15 @@ fun DetalheLinguagemScreen(
                 questoes = questoes,
                 onCancelar = { mostrarDialogo = false },
                 onConfirmar = { enunciado, resposta, dificuldade, alternativasErradas ->
-                    CoroutineScope(Dispatchers.IO).launch {
-                        try {
-                            questaoDao.inserir(
-                                Questao(
-                                    enunciado = enunciado,
-                                    resposta = resposta,
-                                    linguagemId = linguagem.id,
-                                    dificuldade = dificuldade,
-                                    alternativasErradas = alternativasErradas
-                                )
-                            )
-                            recarregarListas(linguagemDao, questaoDao, linguagens, questoes)
-                            buscarDoBanco()
-                        } catch (e: Exception) {
-                            Log.e("DetalheLinguagemScreen", "Erro ao inserir a questão", e)
-                        }
-                    }
+                    viewModel.adicionarQuestao(
+                        Questao(
+                            enunciado = enunciado,
+                            resposta = resposta,
+                            linguagemId = linguagem.id,
+                            dificuldade = dificuldade,
+                            alternativasErradas = alternativasErradas
+                        )
+                    )
                     mostrarDialogo = false
                 }
             )

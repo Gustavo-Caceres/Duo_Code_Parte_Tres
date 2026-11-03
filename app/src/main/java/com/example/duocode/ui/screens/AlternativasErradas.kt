@@ -15,7 +15,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.duocode.model.Questao
+import com.example.duocode.data.Questao
 import com.example.duocode.ui.theme.DuoOrange
 import com.example.duocode.ui.theme.DuoTextSecondary
 

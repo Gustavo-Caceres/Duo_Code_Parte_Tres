@@ -5,7 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
-import com.example.duocode.model.Questao
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface QuestaoDao {
@@ -13,7 +13,7 @@ interface QuestaoDao {
     suspend fun inserir(questao: Questao)
 
     @Query("SELECT * FROM questoes")
-    suspend fun buscarTodos(): List<Questao>
+    fun buscarTodos(): Flow<List<Questao>>
 
     @Query("SELECT * FROM questoes WHERE id = :id")
     suspend fun buscarPorId(id: Int): Questao?
