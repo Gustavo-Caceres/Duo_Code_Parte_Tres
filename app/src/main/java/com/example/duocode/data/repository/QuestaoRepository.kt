@@ -1,5 +1,7 @@
 package com.example.duocode.data.repository
 
+import android.content.Context
+import com.example.duocode.data.AppDatabase
 import com.example.duocode.data.Questao
 import com.example.duocode.data.QuestaoDao
 import kotlinx.coroutines.flow.Flow
@@ -22,5 +24,10 @@ class QuestaoRepository(private val questaoDao: QuestaoDao) {
 
     suspend fun deletar(questao: Questao) {
         questaoDao.deletar(questao)
+    }
+
+    companion object {
+        fun criar(context: Context): QuestaoRepository =
+            QuestaoRepository(AppDatabase.getDatabase(context).questaoDao())
     }
 }
